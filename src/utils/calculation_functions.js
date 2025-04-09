@@ -1,8 +1,5 @@
-import datetime from "datetime";
-import time from "time";
-import math from "mathjs";
-import * as ET from "xml2js";
-import * as GPS_location from "./get_gps_location.js";
+import { XMLParser } from "fast-xml-parser";
+// import * as GPS_location from "./get_gps_location.js";
 
 export function get_time() {
   let now = new Date();
@@ -15,35 +12,33 @@ export function get_time() {
 }
 
 export async function get_route_coordinates(index = null) {
-  let GPX_PATH = "test/Skippo_Test rutt_25-03-2025_2232.gpx";
+  let GPX_PATH = "/Skippo_Test rutt_25-03-2025_2232.gpx";
   try {
-    // In JS, we need to read and parse the file:
-    const fs = await import("fs");
-    let data = fs.readFileSync(GPX_PATH, "utf8");
+    let response = await fetch(GPX_PATH);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    let data = await response.text();
+
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: "" // This removes the @ prefix
+    });
+    let parsedResult = parser.parse(data);
+    console.log("Parsed result:", parsedResult); // Add this for debugging
 
     let route = [];
-    let prev_waypoint = null; // Variable to track the previous waypoint
+    let prev_waypoint = null;
 
-    let parsedResult;
-    await new Promise((resolve, reject) => {
-      ET.parseString(data, (err, result) => {
-        if (err) reject(err);
-        parsedResult = result;
-        resolve();
-      });
-    });
-
-    // Find all route points (<rtept>) if they exist
     if (
       parsedResult &&
       parsedResult.gpx &&
       parsedResult.gpx.rte &&
-      parsedResult.gpx.rte[0] &&
-      parsedResult.gpx.rte[0].rtept
+      parsedResult.gpx.rte.rtept
     ) {
-      parsedResult.gpx.rte[0].rtept.forEach((rtept) => {
-        let lat = parseFloat(rtept.$.lat);
-        let lon = parseFloat(rtept.$.lon);
+      parsedResult.gpx.rte.rtept.forEach((rtept) => {
+        let lat = parseFloat(rtept["lat"]);
+        let lon = parseFloat(rtept["lon"]);
         let waypoint = [lat, lon];
 
         if (
@@ -51,12 +46,9 @@ export async function get_route_coordinates(index = null) {
           waypoint[0] !== prev_waypoint[0] ||
           waypoint[1] !== prev_waypoint[1]
         ) {
-          route.push([lat, lon]); // Add if it's not the same as the previous one
-          prev_waypoint = waypoint; // Update previous waypoint
+          route.push(waypoint);
+          prev_waypoint = waypoint;
         }
-        // else:
-        //     print(f"Discarded duplicate waypoint: ({lat}, {lon})")
-        // Converted comment, but kept text. (No new comment text added, only the '#' changed to '//')
       });
     }
 
@@ -64,13 +56,9 @@ export async function get_route_coordinates(index = null) {
       console.log("Warning: No route points found in GPX file.");
     }
 
-    if (index !== null) {
-      return route[index];
-    } else {
-      return route;
-    }
+    return index !== null ? route[index] : route;
   } catch (e) {
-    console.log("Error reading GPX file: " + e);
+    console.log("Error reading GPX file:", e);
     return [];
   }
 }
@@ -139,32 +127,7 @@ export function convert_unit(operation, value) {
   }
 }
 
-export async function get_speed() {
-  let current_location = [59.75902, 18.62829];
-  let time1 = convert_unit("to-seconds", get_time());
-
-  // Simulate a delay of 0.5 seconds
-  await new Promise((r) => setTimeout(r, 500));
-
-  let current_location2 = [59.75903, 18.62831];
-  let time2 = convert_unit("to-seconds", get_time());
-  let time_diff = time2 - time1;
-  let distance = get_2point_route_distance(current_location, current_location2);
-
-  if (time_diff === 0) {
-    return 0.0;
-  }
-
-  time_diff = time_diff / 3600; // Convert seconds to hours
-
-  return distance / time_diff;
-}
-
-export async function calculate_eta_for_waypoints(
-  planned_start_time,
-  planned_speed,
-  index = null
-) {
+export async function get_eta_for_waypoints(planned_start_time, planned_speed, index = null) {
   let route = await get_route_coordinates(); // Assumes route[0] is the planned starting waypoint
   let start_time = convert_unit("to-seconds", planned_start_time);
 
@@ -193,11 +156,7 @@ export async function calculate_eta_for_waypoints(
   }
 }
 
-export async function get_estimated_delay(
-  start_time,
-  eta_list,
-  waypoint_index
-) {
+export async function get_estimated_delay(start_time, eta_list, waypoint_index) {
   let route = await get_route_coordinates();
   // current_location = GPS_location.read_gps_data()
   let current_location = [59.64795, 18.81407];
@@ -230,4 +189,36 @@ export async function get_estimated_delay(
   return [
     [remaining_distance, formatted_delay, is_delay_positive, throttle_alert],
   ];
+}
+
+export function get_current_location() {
+  function getRandomInRange(min, max) {
+    return Math.random() * (max - min) + min;
+  }
+  // Simulate GPS readings by returning random coordinates near a base location
+  const baseLocation = [59.75803, 18.62731]; // Replace with your base location
+  const randomOffset = () => (getRandomInRange(0.3, 0.8)) * 0.0001; // Small random offset
+  return [
+    baseLocation[0] + randomOffset(), // Random latitude
+    baseLocation[1] + randomOffset(), // Random longitude
+  ];
+}
+
+export function formatCoordinates(coords) {
+  if (!Array.isArray(coords)) return coords;
+  
+  const [lat, lon] = coords;
+  
+  function formatLatLon(value, isLat) {
+    const abs = Math.abs(value);
+    const degrees = Math.floor(abs);
+    const minutes = (abs - degrees) * 60;
+    const direction = isLat 
+      ? (value >= 0 ? 'N' : 'S')
+      : (value >= 0 ? 'E' : 'W');
+    
+    return `${String(degrees).padStart(2, '0')}°${minutes.toFixed(3)}'${direction}`;
+  }
+
+  return `${formatLatLon(lat, true)}, ${formatLatLon(lon, false)}`;
 }
