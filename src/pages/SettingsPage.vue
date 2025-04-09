@@ -1,23 +1,45 @@
 <template>
     <q-page class="q-pa-md">
         <div class="text-h4">Settings</div>
-      <q-file filled bottom-slots v-model="model" label="Upload route" counter>
-        <template v-slot:prepend>
-          <q-icon name="cloud_upload" @click.stop.prevent />
-        </template>
-        <template v-slot:append>
-          <q-icon name="close" @click.stop.prevent="model = null" class="cursor-pointer" />
-        </template>
-        <template v-slot:hint>
-          Insert a GPX file to upload
-        </template>
-      </q-file>
+        <div class="q-pa-md">
+            <q-file
+                filled
+                bottom-slots
+                v-model="gpxFile"
+                label="Upload GPX File"
+                accept=".gpx"
+                @update:model-value="handleFileUpload"
+                counter
+            >
+                <template v-slot:prepend>
+                    <q-icon name="upload_file" @click.stop.prevent />
+                </template>
+                <template v-slot:append>
+                    <q-icon 
+                        name="close" 
+                        @click.stop.prevent="gpxFile = null" 
+                        class="cursor-pointer" 
+                    />
+                </template>
+                <template v-slot:hint>
+                    Select a GPX file to load route waypoints
+                </template>
+            </q-file>
+
+            <q-banner v-if="error" class="bg-red-1 text-red q-mt-md">
+                {{ error }}
+            </q-banner>
+        </div>
     </q-page>
 </template>
+
 <script setup>
 import { ref } from 'vue'
+import { useQuasar } from 'quasar'
 
+const $q = useQuasar()
 const gpxFile = ref(null)
+const error = ref(null)
 
 // Handle file upload
 async function handleFileUpload() {

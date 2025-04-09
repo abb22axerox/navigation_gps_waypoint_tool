@@ -12,20 +12,20 @@ export function get_time() {
 }
 
 export async function get_route_coordinates(index = null) {
-  let GPX_PATH = "/Skippo_Test rutt_25-03-2025_2232.gpx";
   try {
-    let response = await fetch(GPX_PATH);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    // Get GPX data from localStorage
+    const data = localStorage.getItem('currentGPXFile');
+    if (!data) {
+      throw new Error('No GPX file loaded. Please upload a route first.');
     }
-    let data = await response.text();
 
     const parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: "" // This removes the @ prefix
     });
+    
     let parsedResult = parser.parse(data);
-    console.log("Parsed result:", parsedResult); // Add this for debugging
+    console.log("Parsed result:", parsedResult);
 
     let route = [];
     let prev_waypoint = null;
