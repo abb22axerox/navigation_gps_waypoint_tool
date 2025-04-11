@@ -2,6 +2,7 @@
     <q-page class="q-pa-md">
         <div class="text-h4">Settings</div>
         <div class="q-pa-md">
+            <div class="text-h6">Load Route:</div>
             <q-file
                 filled
                 bottom-slots
@@ -10,6 +11,7 @@
                 accept=".gpx"
                 @update:model-value="handleFileUpload"
                 counter
+                :display-value="displayFileName"
             >
                 <template v-slot:prepend>
                     <q-icon name="upload_file" @click.stop.prevent />
@@ -17,7 +19,7 @@
                 <template v-slot:append>
                     <q-icon 
                         name="close" 
-                        @click.stop.prevent="gpxFile = null" 
+                        @click.stop.prevent="clearFile" 
                         class="cursor-pointer" 
                     />
                 </template>
@@ -34,12 +36,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 
 const $q = useQuasar()
 const gpxFile = ref(null)
 const error = ref(null)
+const displayFileName = ref('')
 
 // Handle file upload
 async function handleFileUpload() {
@@ -53,6 +56,7 @@ async function handleFileUpload() {
         error.value = 'Please select a GPX file'
         return
     }
+
     try {
         // Read file content
         const reader = new FileReader()
@@ -60,8 +64,10 @@ async function handleFileUpload() {
         reader.onload = async (e) => {
             const content = e.target.result
             
-            // Save file to local storage or process it
+            // Save file to local storage
             localStorage.setItem('currentGPXFile', content)
+            localStorage.setItem('currentGPXFileName', file.name)
+            displayFileName.value = file.name
             
             // Show success notification
             $q.notify({
@@ -70,11 +76,6 @@ async function handleFileUpload() {
                 position: 'top',
                 timeout: 2000
             })
-
-            // Optional: Parse GPX content here if needed
-            // const parser = new DOMParser()
-            // const xmlDoc = parser.parseFromString(content, "text/xml")
-            // Process xmlDoc...
         }
 
         reader.onerror = () => {
@@ -89,4 +90,19 @@ async function handleFileUpload() {
         console.error('File processing error:', err)
     }
 }
+
+function clearFile() {
+    gpxFile.value = null
+    displayFileName.value = ''
+    localStorage.removeItem('currentGPXFile')
+    localStorage.removeItem('currentGPXFileName')
+}
+
+// Check for existing file on component mount
+onMounted(() => {
+    const savedFileName = localStorage.getItem('currentGPXFileName')
+    if (savedFileName) {
+        displayFileName.value = savedFileName
+    }
+})
 </script>

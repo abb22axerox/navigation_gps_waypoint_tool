@@ -196,8 +196,8 @@ export function get_current_location() {
     return Math.random() * (max - min) + min;
   }
   // Simulate GPS readings by returning random coordinates near a base location
-  const baseLocation = [59.75803, 18.62731]; // Replace with your base location
-  const randomOffset = () => (getRandomInRange(0.3, 0.8)) * 0.0001; // Small random offset
+  const baseLocation = [59.65514, 18.82034]; // Replace with your base location
+  const randomOffset = () => (getRandomInRange(0.3, 0.8)) * 0.001; // Small random offset
   return [
     baseLocation[0] + randomOffset(), // Random latitude
     baseLocation[1] + randomOffset(), // Random longitude
@@ -221,4 +221,36 @@ export function formatCoordinates(coords) {
   }
 
   return `${formatLatLon(lat, true)}, ${formatLatLon(lon, false)}`;
+}
+
+export function get_bearing(coord1, coord2) {
+  // Convert latitudes/longitudes to radians
+  const lat1 = coord1[0] * Math.PI / 180;
+  const lat2 = coord2[0] * Math.PI / 180;
+  const deltaLon = (coord2[1] - coord1[1]) * Math.PI / 180;
+  
+  // Calculate bearing using the haversine formula components
+  const y = Math.sin(deltaLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) -
+            Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
+  const brng = Math.atan2(y, x) * 180 / Math.PI;
+  
+  // Ensure the bearing is normalized to 0-360 degrees
+  return (brng + 360) % 360;
+}
+
+// Add this new function to your calculation_functions.js
+export function calculateRouteMidpoint(coordinates) {
+  if (!coordinates || coordinates.length === 0) {
+    return null;
+  }
+
+  // Calculate the average of all latitudes and longitudes
+  const sumLat = coordinates.reduce((sum, coord) => sum + coord[0], 0);
+  const sumLng = coordinates.reduce((sum, coord) => sum + coord[1], 0);
+  
+  return [
+    sumLat / coordinates.length,
+    sumLng / coordinates.length
+  ];
 }
