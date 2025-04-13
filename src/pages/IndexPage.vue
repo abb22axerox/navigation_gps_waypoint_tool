@@ -43,6 +43,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
+import { useQuasar } from 'quasar'  // Add this import
 import * as CF from "src/utils/calculation_functions";
 import { LMap, LTileLayer, LPolyline, LMarker } from '@vue-leaflet/vue-leaflet';
 import "leaflet/dist/leaflet.css";
@@ -74,8 +75,7 @@ const routeCoordinates = ref([]);
 const currentBoatPos = ref(null);
 const boatIcon = ref(createBoatIcon(0));
 const mapRef = ref(null);
-const currentTime = ref(null);
-const lastStoredEta = ref(JSON.parse(localStorage.getItem('waypointsETA')) || null);
+const $q = useQuasar();  // Add this line
 
 // Intervals
 let navigationInterval = null;
@@ -97,27 +97,63 @@ onMounted(async () => {
       });
     }
 
-    // Restore navigation if it was active
+    // Restore navigation state without recalculating ETA
     if (isNavigating.value) {
-      startNavigation();
+      const initialPos = CF.get_current_location();
+      currentBoatPos.value = initialPos;
+      prevPos = initialPos;
+      
+      // Start position and speed updates without ETA calculation
+      navigationInterval = setInterval(() => {
+        const newPos = CF.get_current_location();
+        const bearing = currentBoatPos.value ? 
+          CF.get_bearing(currentBoatPos.value, newPos) : 0;
+        
+        if (prevPos && prevTime) {
+          const distance = CF.get_2point_route_distance(prevPos, newPos);
+          const timeDiff = (CF.convert_unit("to-seconds", CF.get_time()) - prevTime) / 3600;
+          if (timeDiff > 0) {
+            currentSpeed.value = distance / timeDiff;
+          }
+        }
+
+        boatIcon.value = createBoatIcon(bearing);
+        currentBoatPos.value = newPos;
+        prevPos = newPos;
+        prevTime = CF.convert_unit("to-seconds", CF.get_time());
+      }, 1000);
     }
   }
 });
 
 // Helper function to start navigation
 async function startNavigation() {
+  // Check if planned speed is set
+  const plannedSpeed = localStorage.getItem('plannedSpeed');
+  if (!plannedSpeed) {
+    $q.dialog({
+      title: 'Error',
+      message: 'Please set planned speed in settings before starting navigation.',
+      persistent: true,
+      ok: {
+        label: 'OK',
+        flat: true
+      }
+    });
+    isNavigating.value = false;
+    localStorage.setItem('isNavigating', false);
+    return;
+  }
+
   const initialPos = CF.get_current_location();
   currentBoatPos.value = initialPos;
   prevPos = initialPos;
   
-  // Only calculate new ETA if none exists or navigation just started
-  if (!lastStoredEta.value) {
-    const etaList = await CF.get_eta_for_waypoints(CF.get_time(), 10);
-    localStorage.setItem('waypointsETA', JSON.stringify(etaList));
-    lastStoredEta.value = etaList;
-  }
+  // Calculate ETA list once at navigation start using planned speed
+  const etaList = await CF.get_eta_for_waypoints(CF.get_time(), Number(plannedSpeed));
+  localStorage.setItem('waypointsETA', JSON.stringify(etaList));
   
-  // Update boat position, rotation and speed
+  // Start position and speed updates
   navigationInterval = setInterval(() => {
     const newPos = CF.get_current_location();
     const bearing = currentBoatPos.value ? 
@@ -140,12 +176,18 @@ async function startNavigation() {
 }
 
 // Toggle navigation mode
-async function toggleNavigation() {
+function toggleNavigation() {
   isNavigating.value = !isNavigating.value;
   localStorage.setItem('isNavigating', isNavigating.value);
 
   if (isNavigating.value) {    
-    await startNavigation();
+    startNavigation();
+    $q.notify({
+      type: 'positive',
+      message: 'Navigation started',
+      position: 'top',
+      timeout: 2000
+    });
   } else {
     clearInterval(navigationInterval);
     navigationInterval = null;
@@ -153,8 +195,13 @@ async function toggleNavigation() {
     prevPos = null;
     prevTime = null;
     currentSpeed.value = 0;
-    // Don't clear ETA when stopping navigation
-    // localStorage.removeItem('waypointsETA');
+    localStorage.removeItem('waypointsETA');
+    $q.notify({
+      type: 'warning',
+      message: 'Navigation stopped',
+      position: 'top',
+      timeout: 2000
+    });
   }
 }
 
