@@ -18,6 +18,7 @@
                 <q-card class="settings-card" bordered>
                     <q-card-section>
                         <div class="text-h6 q-mb-md">Navigation Parameters</div>
+                        <!-- Speed Input -->
                         <q-input 
                             class="q-mb-md"
                             filled 
@@ -32,6 +33,44 @@
                                 <q-icon name="speed" />
                             </template>
                         </q-input>
+
+                        <!-- Time Input -->
+                        <q-input 
+                            class="q-mb-sm"
+                            filled 
+                            v-model="plannedTime"
+                            label="Start Time"
+                            mask="fulltime"
+                            :rules="['fulltime']"
+                            :readonly="useCurrentTime"
+                            stack-label 
+                            :dense="dense"
+                            @update:model-value="handleManualTimeUpdate"
+                        >
+                            <template v-slot:append>
+                                <q-icon name="access_time" class="cursor-pointer">
+                                    <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                                        <q-time
+                                            v-model="plannedTime"
+                                            with-seconds
+                                            format24h
+                                            :readonly="useCurrentTime"
+                                        >
+                                            <div class="row items-center justify-end">
+                                                <q-btn v-close-popup label="Close" color="primary" flat />
+                                            </div>
+                                        </q-time>
+                                    </q-popup-proxy>
+                                </q-icon>
+                            </template>
+                        </q-input>
+
+                        <q-toggle
+                            v-model="useCurrentTime"
+                            label="Use Current Time Instead"
+                            @update:model-value="handleCurrentTimeToggle"
+                            class="q-mb-md"
+                        />
                     </q-card-section>
                 </q-card>
             </div>
@@ -82,6 +121,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
+import * as CF from "src/utils/calculation_functions"
 
 const $q = useQuasar()
 const gpxFile = ref(null)
@@ -89,6 +129,8 @@ const error = ref(null)
 const displayFileName = ref('')
 const plannedSpeed = ref(0)
 const dense = ref(true)
+const plannedTime = ref('')
+const useCurrentTime = ref(false)
 
 // Handle file upload
 async function handleFileUpload() {
@@ -176,7 +218,28 @@ function handleSpeedUpdate(value) {
 
 }
 
-// Modified onMounted to also load planned speed
+function handleManualTimeUpdate(value) {  
+    // De-toggle the "Use Current Time" switch when manual input occurs
+    useCurrentTime.value = false
+    localStorage.setItem('useCurrentTime', 'false')
+    localStorage.setItem('plannedTime', value)
+    
+    $q.notify({
+        type: 'positive',
+        message: 'Start time updated successfully',
+        position: 'top',
+        timeout: 2000
+    })
+}
+
+function handleCurrentTimeToggle(value) {
+    localStorage.setItem('useCurrentTime', String(value))
+    if (value) {
+        const currentTime = CF.get_time()
+        plannedTime.value = currentTime.slice(0,3).map(v => String(v).padStart(2,'0')).join(':')
+    }
+}
+
 onMounted(() => {
     const savedFileName = localStorage.getItem('currentGPXFileName')
     if (savedFileName) {
@@ -186,6 +249,26 @@ onMounted(() => {
     const savedSpeed = localStorage.getItem('plannedSpeed')
     if (savedSpeed) {
         plannedSpeed.value = Number(savedSpeed)
+    }
+
+    const savedTime = localStorage.getItem('plannedTime')
+    if (savedTime) {
+        plannedTime.value = savedTime
+    } else {
+        // Initialize with current time
+        const currentTime = CF.get_time()
+        plannedTime.value = currentTime.slice(0,3).map(v => String(v).padStart(2,'0')).join(':')
+    }
+
+    // Restore useCurrentTime toggle state
+    const savedUseCurrentTime = localStorage.getItem('useCurrentTime')
+    if (savedUseCurrentTime !== null) {
+        useCurrentTime.value = savedUseCurrentTime === 'true'
+        if (useCurrentTime.value) {
+            // Set planned time to current time if toggle is on
+            const currentTime = CF.get_time()
+            plannedTime.value = currentTime.slice(0,3).map(v => String(v).padStart(2,'0')).join(':')
+        }
     }
 })
 </script>
