@@ -43,27 +43,118 @@
           />
         </l-map>
       </div>
-      <div class="col-xs-12 col-md-6">
-        <div class="text-h6">{{ currentGPXFile || 'No route loaded' }}</div>
-        <div>{{ currentSpeed.toFixed(2) }} knots</div>
-        <div>Bearing: {{ currentBearing.toFixed(2) }}°</div>
-        <div v-if="estimatedDelay">
-          <div>Remaining Distance: {{ estimatedDelay[0].toFixed(2) }} NM</div>
-          <div>Delay: {{ formatDelay(estimatedDelay[1]) }}</div>
-          <div>{{ estimatedDelay[2] ? 'Late' : 'Early' }}</div>
-          <div>Throttle Alert: {{ estimatedDelay[3].toFixed(2) }}</div>
+      <!-- Wrap the dashboard and throttle slider in a flex container -->
+      <div class="row q-pa-md bordered-container flex-wrapper">
+        <!-- Dashboard / Parameters Section -->
+        <div class="col-xs-12 col-md-6 q-pa-md dashboard-container">
+          <div class="text-h6 q-mb-md">{{ currentGPXFile || 'No route loaded' }}</div>
+          
+          <div class="row q-col-gutter-md">
+            <!-- Primary Stats -->
+            <div class="col-6">
+              <q-card class="dashboard-card">
+                <q-card-section>
+                  <div class="text-h3 text-weight-bold text-primary">
+                    {{ currentSpeed.toFixed(1) }}
+                    <span class="text-caption">knots</span>
+                  </div>
+                  <div class="text-subtitle2 text-grey-7">Current Speed</div>
+                </q-card-section>
+              </q-card>
+            </div>
+            
+            <div class="col-6">
+              <q-card class="dashboard-card">
+                <q-card-section>
+                  <div class="text-h3 text-weight-bold text-primary">
+                    {{ currentBearing.toFixed(1) }}°
+                  </div>
+                  <div class="text-subtitle2 text-grey-7">Bearing</div>
+                </q-card-section>
+              </q-card>
+            </div>
+
+            <!-- Navigation Info -->
+            <div class="col-12" v-if="estimatedDelay">
+              <q-card class="dashboard-card">
+                <q-card-section>
+                  <div class="row items-center q-col-gutter-md">
+                    <div class="col-6">
+                      <div class="text-h5 text-weight-medium">
+                        {{ estimatedDelay[0].toFixed(2) }} <span class="text-caption">NM</span>
+                      </div>
+                      <div class="text-subtitle2 text-grey-7">Remaining Distance</div>
+                    </div>
+                    <div class="col-6">
+                      <div class="text-h5" :class="estimatedDelay[2] ? 'text-negative' : 'text-positive'">
+                        {{ formatDelay(estimatedDelay[1]) }}
+                      </div>
+                      <div class="text-subtitle2 text-grey-7">
+                        Delay ({{ estimatedDelay[2] ? 'Late' : 'Early' }})
+                      </div>
+                    </div>
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+
+            <!-- Waypoint Info -->
+            <div class="col-12" v-if="isNavigating">
+              <q-card class="dashboard-card">
+                <q-card-section>
+                  <div class="row items-center q-col-gutter-md">
+                    <div class="col-6">
+                      <div class="text-h5 text-weight-medium">
+                        {{ passedWaypointIndex + 1 }} / {{ routeCoordinates.length }}
+                      </div>
+                      <div class="text-subtitle2 text-grey-7">Current Waypoint</div>
+                    </div>
+                    <div class="col-6">
+                      <div class="text-h5 text-weight-medium">
+                        {{ formatTime(etaList[passedWaypointIndex + 1]?.[1]) }}
+                      </div>
+                      <div class="text-subtitle2 text-grey-7">Must Arrive</div>
+                    </div>
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+          </div>
+          <!-- Navigation Control -->
+          <q-btn
+            class="full-width q-mt-md"
+            size="lg"
+            :color="isNavigating ? 'negative' : 'primary'"
+            :label="isNavigating ? 'Stop Navigation' : 'Start Navigation'"
+            @click="toggleNavigation"
+          />
         </div>
-        <div v-if="isNavigating">
-          <div>Next waypoint: {{ passedWaypointIndex + 1 }} / {{ routeCoordinates.length }}</div>
-          <div>Must Arrive: {{ formatTime(etaList[passedWaypointIndex + 1]?.[1]) }}</div>
+
+        <!-- Throttle Alert (Slider) Section -->
+        <div v-if="estimatedDelay" class="throttle-container">
+          <q-slider
+            v-model="estimatedDelay[3]"
+            :min="-1"
+            :max="1"
+            :step="0.01"
+            readonly
+            vertical
+            reverse
+            color="blue-10"
+            track-size="100px"
+            class="throttle-slider"
+          >
+            <!-- Remove default thumb by using an empty thumb slot -->
+            <template v-slot:thumb="props"></template>
+          </q-slider>              
+          <q-icon 
+            v-if="estimatedDelay[3] > 1" 
+            name="warning" 
+            color="negative" 
+            size="2em"
+            class="warning-icon"
+          />
         </div>
-        <q-btn
-          size="xl"
-          :color="isNavigating ? 'negative' : 'primary'"
-          :label="isNavigating ? 'Stop Navigation' : 'Start Navigation'"
-          @click="toggleNavigation"
-          class="q-mt-md"
-        />
       </div>
     </div>
   </q-page>
@@ -97,16 +188,12 @@ const dotIcon = L.divIcon({
   className: '',
   iconSize: [8, 8]
 });
-const startIcon = L.divIcon({
+const startEndIcon = L.divIcon({
   html: '<div style="background:green; width:12px; height:12px; border-radius:50%;"></div>',
   className: '',
   iconSize: [12, 12]
 });
-const endIcon = L.divIcon({
-  html: '<div style="background:red; width:12px; height:12px; border-radius:50%;"></div>',
-  className: '',
-  iconSize: [12, 12]
-});
+
 function createBoatIcon(angle = 0) {
   return L.divIcon({
     html: `<div style="transform: rotate(${angle}deg); font-size: 24px; line-height:1;">&#10148;</div>`,
@@ -118,8 +205,7 @@ function createBoatIcon(angle = 0) {
 
 // Returns the proper icon for a given waypoint index.
 function getWaypointIcon(index) {
-  if(index === 0) return startIcon;
-  if(index === routeCoordinates.value.length - 1) return endIcon;
+  if(index === 0 || index === routeCoordinates.value.length - 1) return startEndIcon;
   return dotIcon;
 }
 
@@ -207,7 +293,7 @@ function parseTimeString(timeStr) {
 
 // onMounted: load route data and restore navigation if active.
 onMounted(async () => {
-  currentGPXFile.value = localStorage.getItem('currentGPXFileName') || '';
+  currentGPXFile.value = (localStorage.getItem('currentGPXFileName') || '').replace('.gpx', '');
   const coordinates = await CF.get_route_coordinates();
   if (coordinates.length) {
     routeCoordinates.value = coordinates;
@@ -347,8 +433,57 @@ onBeforeUnmount(() => {
 .leaflet-control {
   z-index: 0 !important;
 }
-.bordered-container {
-  border: 1px solid #ccc;
+
+/* Remove shadows from boxes and update basic card styling */
+.dashboard-card {
+  box-shadow: none;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
+  transition: none;
+}
+
+/* Flex container to align dashboard and slider at the top */
+.flex-wrapper {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+/* Dashboard container takes available space */
+.dashboard-container {
+  flex: 1;
+}
+
+/* Position the throttle slider to the far right */
+.throttle-container {
+  margin-left: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Adjust the slider dimensions */
+.throttle-slider {
+  width: 100px;
+  height: 300px;  /* Adjust as necessary to match the height of your parameters */
+}
+
+/* Other typography styles */
+.text-h3 {
+  line-height: 1.2;
+}
+
+.text-h5 {
+  line-height: 1.2;
+}
+
+.text-caption {
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+/* Optional: style warning icon */
+.warning-icon {
+  margin-top: 1rem;
 }
 </style>
