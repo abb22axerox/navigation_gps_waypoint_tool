@@ -20,7 +20,7 @@
           />
 
           <!-- Navigation boat marker -->
-          <l-marker 
+          <l-marker
             v-if="isNavigating && currentBoatPos"
             :lat-lng="currentBoatPos"
             :icon="boatIcon"
@@ -28,99 +28,140 @@
 
           <!-- Visualize current route segment (green dashed vector) -->
           <l-polyline
-            v-if="isNavigating && routeCoordinates.length > passedWaypointIndex + 1"
-            :lat-lngs="[ routeCoordinates[passedWaypointIndex], routeCoordinates[passedWaypointIndex + 1] ]"
+            v-if="
+              isNavigating && routeCoordinates.length > passedWaypointIndex + 1
+            "
+            :lat-lngs="[
+              routeCoordinates[passedWaypointIndex],
+              routeCoordinates[passedWaypointIndex + 1],
+            ]"
             color="green"
             dashArray="5, 5"
           />
 
           <!-- Visualize boat vector from passed waypoint (red dashed vector) -->
           <l-polyline
-            v-if="isNavigating && currentBoatPos && routeCoordinates.length > passedWaypointIndex"
-            :lat-lngs="[ routeCoordinates[passedWaypointIndex], currentBoatPos ]"
+            v-if="
+              isNavigating &&
+              currentBoatPos &&
+              routeCoordinates.length > passedWaypointIndex
+            "
+            :lat-lngs="[routeCoordinates[passedWaypointIndex], currentBoatPos]"
             color="red"
             dashArray="5, 5"
           />
         </l-map>
       </div>
       <!-- Wrap the dashboard and throttle slider in a flex container -->
-      <div class="row q-pa-md bordered-container flex-wrapper">
+      <div class="row q-pl-md bordered-container flex-wrapper">
         <!-- Dashboard / Parameters Section -->
-        <div class="col-xs-12 col-md-6 q-pa-md dashboard-container">
-          <div class="text-h6 q-mb-md">{{ currentGPXFile || 'No route loaded' }}</div>
-          
-          <div class="row q-col-gutter-md">
+        <div class="col-xs-12 col-md-6 dashboard-container row">
+          <div class="text-h6">
+            {{ currentGPXFile || "No route loaded" }}
+          </div>
+
+          <div class="row q-pt-md q-col-gutter-md">
             <!-- Primary Stats -->
             <div class="col-6">
               <q-card class="dashboard-card">
                 <q-card-section>
-                  <div class="text-h3 text-weight-bold text-primary">
-                    {{ currentSpeed.toFixed(1) }}
+                  <div class="text-h4 text-weight-bold text-primary">
+                    {{ (isNavigating ? currentSpeed : 0)?.toFixed(1) || "0.0" }}
                     <span class="text-caption">knots</span>
                   </div>
                   <div class="text-subtitle2 text-grey-7">Current Speed</div>
                 </q-card-section>
               </q-card>
             </div>
-            
+
             <div class="col-6">
               <q-card class="dashboard-card">
                 <q-card-section>
-                  <div class="text-h3 text-weight-bold text-primary">
-                    {{ currentBearing.toFixed(1) }}°
+                  <div class="text-h4 text-weight-bold text-primary">
+                    <div
+                      :class="
+                        isNavigating && estimatedDelay?.[2]
+                          ? 'text-negative'
+                          : 'text-positive'
+                      "
+                    >
+                      {{
+                        isNavigating
+                          ? estimatedDelay
+                            ? formatDelay(estimatedDelay[1])
+                            : "--:--"
+                          : "0:00"
+                      }}
+                      <span class="text-caption">{{
+                        isNavigating
+                          ? estimatedDelay?.length
+                            ? estimatedDelay[2]
+                              ? "Late"
+                              : "Early"
+                            : "On Time"
+                          : "--"
+                      }}</span>
+                    </div>
                   </div>
-                  <div class="text-subtitle2 text-grey-7">Bearing</div>
+                  <div class="text-subtitle2 text-grey-7">Delay</div>
                 </q-card-section>
               </q-card>
             </div>
 
-            <!-- Navigation Info -->
-            <div class="col-12" v-if="estimatedDelay">
+            <!-- Waypoint Info - Always visible -->
+            <div class="col-12">
               <q-card class="dashboard-card">
                 <q-card-section>
-                  <div class="row items-center q-col-gutter-md">
-                    <div class="col-6">
-                      <div class="text-h5 text-weight-medium">
-                        {{ estimatedDelay[0].toFixed(2) }} <span class="text-caption">NM</span>
+                  <!-- Change class to justify-between to space items evenly -->
+                  <div class="row justify-between items-center">
+                    <!-- Change col-4 to col classes for flexible width -->
+                    <div class="col">
+                      <div class="text-h5 text-weight-medium text-center">
+                        {{
+                          isNavigating
+                            ? `${passedWaypointIndex + 1} / ${
+                                routeCoordinates.length
+                              }`
+                            : "0 / 0"
+                        }}
                       </div>
-                      <div class="text-subtitle2 text-grey-7">Remaining Distance</div>
+                      <div class="text-subtitle2 text-grey-7 text-center">
+                        Next Waypoint
+                      </div>
                     </div>
-                    <div class="col-6">
-                      <div class="text-h5" :class="estimatedDelay[2] ? 'text-negative' : 'text-positive'">
-                        {{ formatDelay(estimatedDelay[1]) }}
-                      </div>
-                      <div class="text-subtitle2 text-grey-7">
-                        Delay ({{ estimatedDelay[2] ? 'Late' : 'Early' }})
-                      </div>
-                    </div>
-                  </div>
-                </q-card-section>
-              </q-card>
-            </div>
 
-            <!-- Waypoint Info -->
-            <div class="col-12" v-if="isNavigating">
-              <q-card class="dashboard-card">
-                <q-card-section>
-                  <div class="row items-center q-col-gutter-md">
-                    <div class="col-6">
-                      <div class="text-h5 text-weight-medium">
-                        {{ passedWaypointIndex + 1 }} / {{ routeCoordinates.length }}
+                    <div class="col">
+                      <div class="text-h5 text-weight-medium text-center">
+                        {{
+                          (isNavigating && estimatedDelay
+                            ? estimatedDelay[0]
+                            : 0
+                          ).toFixed(2) || "0.00"
+                        }}
+                        <span class="text-caption">NM</span>
                       </div>
-                      <div class="text-subtitle2 text-grey-7">Current Waypoint</div>
+                      <div class="text-subtitle2 text-grey-7 text-center">
+                        Remaining Distance
+                      </div>
                     </div>
-                    <div class="col-6">
-                      <div class="text-h5 text-weight-medium">
-                        {{ formatTime(etaList[passedWaypointIndex + 1]?.[1]) }}
+
+                    <div class="col">
+                      <div class="text-h5 text-weight-medium text-center">
+                        {{
+                          isNavigating && etaList[passedWaypointIndex + 1]
+                            ? formatTime(etaList[passedWaypointIndex + 1][1])
+                            : "--:--:--"
+                        }}
                       </div>
-                      <div class="text-subtitle2 text-grey-7">Must Arrive</div>
+                      <div class="text-subtitle2 text-grey-7 text-center">
+                        Must Arrive
+                      </div>
                     </div>
                   </div>
                 </q-card-section>
               </q-card>
             </div>
           </div>
-          <!-- Navigation Control -->
           <q-btn
             class="full-width q-mt-md"
             size="lg"
@@ -129,9 +170,8 @@
             @click="toggleNavigation"
           />
         </div>
-
         <!-- Throttle Alert (Slider) Section -->
-        <div v-if="estimatedDelay" class="throttle-container">
+        <div class="throttle-container q-pr-md" v-if="estimatedDelay?.length">
           <q-slider
             v-model="estimatedDelay[3]"
             :min="-1"
@@ -146,11 +186,11 @@
           >
             <!-- Remove default thumb by using an empty thumb slot -->
             <template v-slot:thumb="props"></template>
-          </q-slider>              
-          <q-icon 
-            v-if="estimatedDelay[3] > 1" 
-            name="warning" 
-            color="negative" 
+          </q-slider>
+          <q-icon
+            v-if="estimatedDelay[3] > 1"
+            name="warning"
+            color="negative"
             size="2em"
             class="warning-icon"
           />
@@ -162,58 +202,112 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
-import { useQuasar } from 'quasar';
+import { useQuasar } from "quasar";
 import * as CF from "src/utils/calculation_functions";
-import { LMap, LTileLayer, LPolyline, LMarker } from '@vue-leaflet/vue-leaflet';
+import { LMap, LTileLayer, LPolyline, LMarker } from "@vue-leaflet/vue-leaflet";
 import "leaflet/dist/leaflet.css";
-import L from 'leaflet';
+import L from "leaflet";
 
 // Add formatTime helper function at the top of script setup
 function formatTime(timeArray) {
-  if (!timeArray || !Array.isArray(timeArray)) return '--:--:--'
-  const [hours, minutes, seconds] = timeArray
-  return [hours, minutes, seconds].map(v => String(v).padStart(2,'0')).join(':')
+  if (!timeArray || !Array.isArray(timeArray)) return "--:--:--";
+  const [hours, minutes, seconds] = timeArray;
+  return [hours, minutes, seconds]
+    .map((v) => String(v).padStart(2, "0"))
+    .join(":");
 }
 
 function formatDelay(delay) {
-  if (!delay || !Array.isArray(delay)) return '--:--:--'
-  const [hours, minutes, seconds, milliseconds] = delay
-  const timeStr = [hours, minutes, seconds, Math.floor(milliseconds/10)].map(v => String(v).padStart(2,'0')).join(':')
-  return timeStr
+  if (!delay || !Array.isArray(delay)) return "--:--";
+
+  // const [hours, minutes, seconds, milliseconds] = delay;
+  // Convert everything to seconds for easier calculation
+  // const totalSeconds =
+  //   hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+
+  const totalSeconds = CF.convert_unit("to-seconds", delay);
+
+  // Calculate minutes and remaining seconds
+  const absSeconds = Math.abs(totalSeconds);
+  const mins = Math.floor(absSeconds / 60);
+  const secs = Math.floor(absSeconds % 60);
+
+  // Build the string based on what values we have
+  let timeStr = "";
+  if (mins > 0) {
+    timeStr += `${mins}min `;
+  }
+  if (secs > 0 || mins === 0) {
+    timeStr += `${secs}s`;
+  }
+
+  return timeStr.trim();
 }
 
 // Icons
 const dotIcon = L.divIcon({
   html: '<div style="background:red; width:8px; height:8px; border-radius:50%;"></div>',
-  className: '',
-  iconSize: [8, 8]
+  className: "",
+  iconSize: [8, 8],
 });
 const startEndIcon = L.divIcon({
   html: '<div style="background:green; width:12px; height:12px; border-radius:50%;"></div>',
-  className: '',
-  iconSize: [12, 12]
+  className: "",
+  iconSize: [12, 12],
 });
 
 function createBoatIcon(angle = 0) {
   return L.divIcon({
     html: `<div style="transform: rotate(${angle}deg); font-size: 24px; line-height:1;">&#10148;</div>`,
-    className: '',
+    className: "",
     iconSize: [24, 24],
-    iconAnchor: [12, 12]
+    iconAnchor: [12, 12],
   });
 }
 
-// Returns the proper icon for a given waypoint index.
+// Update the icon creation functions in the script section
+function createIndexedDotIcon(index) {
+  return L.divIcon({
+    html: `
+      <div style="position: relative;">
+        <div style="background:red; width:8px; height:8px; border-radius:50%;"></div>
+        <div style="position: absolute; top:-12px; left:8px; font-size:12px; background:white; padding:0 2px; border-radius:2px;">
+          ${index + 1}
+        </div>
+      </div>`,
+    className: "",
+    iconSize: [8, 8],
+  });
+}
+
+function createIndexedStartEndIcon(index, isLast) {
+  return L.divIcon({
+    html: `
+      <div style="position: relative;">
+        <div style="background:green; width:12px; height:12px; border-radius:50%;"></div>
+        <div style="position: absolute; top:-14px; left:12px; font-size:12px; font-weight:bold; background:white; padding:0 2px; border-radius:2px;">
+          ${isLast ? "END" : "START"}
+        </div>
+      </div>`,
+    className: "",
+    iconSize: [12, 12],
+  });
+}
+
+// Update the getWaypointIcon function
 function getWaypointIcon(index) {
-  if(index === 0 || index === routeCoordinates.value.length - 1) return startEndIcon;
-  return dotIcon;
+  const isLast = index === routeCoordinates.value.length - 1;
+  if (index === 0 || isLast) {
+    return createIndexedStartEndIcon(index, isLast);
+  }
+  return createIndexedDotIcon(index);
 }
 
 // State
 const currentSpeed = ref(0);
 const currentBearing = ref(0);
-const currentGPXFile = ref('');
-const isNavigating = ref(localStorage.getItem('isNavigating') === 'true');
+const currentGPXFile = ref("");
+const isNavigating = ref(localStorage.getItem("isNavigating") === "true");
 const zoom = ref(13);
 const center = ref([59.75803, 18.62731]);
 const routeCoordinates = ref([]);
@@ -241,59 +335,94 @@ let prevTime = null;
  * It updates boat position, speed, bearing, and handles iterative waypoint logic.
  * Also, it calls get_estimated_delay() to update the estimated delay information.
  */
-function initializeNavigation() {
-  navigationInterval = setInterval(() => {
-    const newPos = CF.get_current_location();
-    const bearing = currentBoatPos.value ? CF.get_bearing(currentBoatPos.value, newPos) : 0;
-    currentBearing.value = bearing;
+async function initializeNavigation() {
+  try {
+    navigationInterval = setInterval(async () => {
+      try {
+        const newPos = await CF.get_current_location();
+        if (!newPos) return;
 
-    if (prevPos && prevTime) {
-      const distance = CF.get_2point_route_distance(prevPos, newPos);
-      const timeDiff = (CF.convert_unit("to-seconds", CF.get_time()) - prevTime) / 3600;
-      if (timeDiff > 0) {
-        currentSpeed.value = distance / timeDiff;
-      }
-    }
-    
-    boatIcon.value = createBoatIcon(bearing);
-    currentBoatPos.value = newPos;
-    prevPos = newPos;
-    prevTime = CF.convert_unit("to-seconds", CF.get_time());
-    
-    // Iterative waypoint logic:
-    // Here, passed_waypoint is the waypoint at passedWaypointIndex,
-    // and next_waypoint is the one immediately after it.
-    if (routeCoordinates.value.length > passedWaypointIndex.value + 1 && !waypointSwitching.value) {
-      const passed_waypoint = routeCoordinates.value[passedWaypointIndex.value];
-      const next_waypoint = routeCoordinates.value[passedWaypointIndex.value + 1];
-      if (CF.calculate_dot_product(passed_waypoint, next_waypoint)) {
-        waypointSwitching.value = true;
-        setTimeout(() => {
-          passedWaypointIndex.value++;
-          waypointSwitching.value = false;
-        }, 1000); // wait one second before switching waypoints.
-      }
-    }
+        const bearing = currentBoatPos.value
+          ? CF.get_bearing(currentBoatPos.value, newPos)
+          : 0;
+        currentBearing.value = bearing;
 
-    // Update the estimated delay if we have an ETA list and planned start time.
-    if (etaList.value.length && plannedStartTime.value) {
-      CF.get_estimated_delay(plannedStartTime.value, etaList.value, passedWaypointIndex.value, currentSpeed.value)
-        .then(result => {
-        estimatedDelay.value = result[0];
-      });
-    }
-  }, 1000);
+        if (prevPos && prevTime) {
+          const distance = CF.get_2point_route_distance(prevPos, newPos);
+          const timeDiff =
+            (CF.convert_unit("to-seconds", CF.get_time()) - prevTime) / 3600;
+          if (timeDiff > 0) {
+            currentSpeed.value = distance / timeDiff;
+          }
+        }
+
+        boatIcon.value = createBoatIcon(bearing);
+        currentBoatPos.value = newPos;
+        prevPos = newPos;
+        prevTime = CF.convert_unit("to-seconds", CF.get_time());
+
+        // Iterative waypoint logic:
+        // Here, passed_waypoint is the waypoint at passedWaypointIndex,
+        // and next_waypoint is the one immediately after it.
+        if (
+          routeCoordinates.value.length > passedWaypointIndex.value + 1 &&
+          !waypointSwitching.value
+        ) {
+          const passed_waypoint =
+            routeCoordinates.value[passedWaypointIndex.value];
+          const next_waypoint =
+            routeCoordinates.value[passedWaypointIndex.value + 1];
+          if (CF.calculate_dot_product(passed_waypoint, next_waypoint)) {
+            waypointSwitching.value = true;
+            setTimeout(() => {
+              passedWaypointIndex.value++;
+              waypointSwitching.value = false;
+            }, 1000); // wait one second before switching waypoints.
+          }
+        }
+
+        // Update the estimated delay if we have an ETA list and planned start time.
+        if (etaList.value.length && plannedStartTime.value) {
+          CF.get_estimated_delay(
+            plannedStartTime.value,
+            etaList.value,
+            passedWaypointIndex.value,
+            currentSpeed.value
+          ).then((result) => {
+            estimatedDelay.value = result[0];
+          });
+        }
+      } catch (error) {
+        console.warn("Navigation update error:", error);
+        // Optionally stop navigation if critical error
+        if (error.message.includes("No Listener")) {
+          toggleNavigation();
+          $q.notify({
+            type: "negative",
+            message: "Navigation stopped due to connection error",
+            position: "top",
+            timeout: 3000,
+          });
+        }
+      }
+    }, 1000);
+  } catch (error) {
+    console.error("Navigation initialization error:", error);
+    isNavigating.value = false;
+  }
 }
 
 // Add helper function to parse time string
 function parseTimeString(timeStr) {
-  const [hours, minutes, seconds] = timeStr.split(':').map(Number)
-  return [hours, minutes, seconds, 0]
+  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
+  return [hours, minutes, seconds, 0];
 }
 
 // onMounted: load route data and restore navigation if active.
 onMounted(async () => {
-  currentGPXFile.value = (localStorage.getItem('currentGPXFileName') || '').replace('.gpx', '');
+  currentGPXFile.value = (
+    localStorage.getItem("currentGPXFileName") || ""
+  ).replace(".gpx", "");
   const coordinates = await CF.get_route_coordinates();
   if (coordinates.length) {
     routeCoordinates.value = coordinates;
@@ -313,25 +442,25 @@ onMounted(async () => {
       currentBoatPos.value = initialPos;
       prevPos = initialPos;
       prevTime = CF.convert_unit("to-seconds", CF.get_time());
-      
-      const storedETA = localStorage.getItem('waypointsETA');
+
+      const storedETA = localStorage.getItem("waypointsETA");
       if (storedETA) {
         etaList.value = JSON.parse(storedETA);
       }
-      
+
       // Get start time based on settings
-      const useCurrentTime = localStorage.getItem('useCurrentTime') === 'true';
+      const useCurrentTime = localStorage.getItem("useCurrentTime") === "true";
       if (useCurrentTime) {
         plannedStartTime.value = CF.get_time();
       } else {
-        const savedTime = localStorage.getItem('plannedTime');
+        const savedTime = localStorage.getItem("plannedTime");
         if (savedTime) {
           plannedStartTime.value = parseTimeString(savedTime);
         } else {
           plannedStartTime.value = CF.get_time();
         }
       }
-      
+
       initializeNavigation();
     }
   }
@@ -339,62 +468,67 @@ onMounted(async () => {
 
 // Helper function to start navigation.
 async function startNavigation() {
-  const plannedSpeed = localStorage.getItem('plannedSpeed');
+  const plannedSpeed = localStorage.getItem("plannedSpeed");
   if (!plannedSpeed) {
     $q.dialog({
-      title: 'Error',
-      message: 'Please set planned speed in settings before starting navigation.',
+      title: "Error",
+      message:
+        "Please set planned speed in settings before starting navigation.",
       persistent: true,
-      ok: { label: 'OK', flat: true }
+      ok: { label: "OK", flat: true },
     });
     isNavigating.value = false;
-    localStorage.setItem('isNavigating', false);
+    localStorage.setItem("isNavigating", false);
     return;
   }
-  
+
   const initialPos = CF.get_current_location();
   currentBoatPos.value = initialPos;
   prevPos = initialPos;
   prevTime = CF.convert_unit("to-seconds", CF.get_time());
-  
+
   // Get start time based on settings
-  const useCurrentTime = localStorage.getItem('useCurrentTime') === 'true';
+  const useCurrentTime = localStorage.getItem("useCurrentTime") === "true";
   if (useCurrentTime) {
     plannedStartTime.value = CF.get_time();
   } else {
-    const savedTime = localStorage.getItem('plannedTime');
+    const savedTime = localStorage.getItem("plannedTime");
     if (!savedTime) {
       $q.dialog({
-        title: 'Error',
-        message: 'Please set planned time in settings before starting navigation.',
+        title: "Error",
+        message:
+          "Please set planned time in settings before starting navigation.",
         persistent: true,
-        ok: { label: 'OK', flat: true }
+        ok: { label: "OK", flat: true },
       });
       isNavigating.value = false;
-      localStorage.setItem('isNavigating', false);
+      localStorage.setItem("isNavigating", false);
       return;
     }
     plannedStartTime.value = parseTimeString(savedTime);
   }
-  
-  etaList.value = await CF.get_eta_for_waypoints(plannedStartTime.value, Number(plannedSpeed));
-  localStorage.setItem('waypointsETA', JSON.stringify(etaList.value));
-  
+
+  etaList.value = await CF.get_eta_for_waypoints(
+    plannedStartTime.value,
+    Number(plannedSpeed)
+  );
+  localStorage.setItem("waypointsETA", JSON.stringify(etaList.value));
+
   initializeNavigation();
 }
 
 // Toggle navigation mode.
 function toggleNavigation() {
   isNavigating.value = !isNavigating.value;
-  localStorage.setItem('isNavigating', isNavigating.value);
+  localStorage.setItem("isNavigating", isNavigating.value);
 
-  if (isNavigating.value) {    
+  if (isNavigating.value) {
     startNavigation();
     $q.notify({
-      type: 'positive',
-      message: 'Navigation started',
-      position: 'top',
-      timeout: 2000
+      type: "positive",
+      message: "Navigation started",
+      position: "top",
+      timeout: 2000,
     });
   } else {
     clearInterval(navigationInterval);
@@ -403,12 +537,12 @@ function toggleNavigation() {
     prevPos = null;
     prevTime = null;
     currentSpeed.value = 0;
-    localStorage.removeItem('waypointsETA');
+    localStorage.removeItem("waypointsETA");
     $q.notify({
-      type: 'warning',
-      message: 'Navigation stopped',
-      position: 'top',
-      timeout: 2000
+      type: "warning",
+      message: "Navigation stopped",
+      position: "top",
+      timeout: 2000,
     });
   }
 }
@@ -418,15 +552,47 @@ onBeforeUnmount(() => {
   if (navigationInterval) {
     clearInterval(navigationInterval);
   }
+  // Clean up any pending messages
+  if (chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.removeListener();
+  }
 });
 </script>
 
 <style>
 .map-container {
-  width: 600px;
+  width: 50%; /* Adjust as needed */
   height: 400px;
   z-index: 0;
 }
+
+/* Flex container to align dashboard and slider at the top */
+.flex-wrapper {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 50%; /* Occupy the remaining width */
+}
+
+/* Dashboard container takes available space */
+.dashboard-container {
+  flex: 1; /* Takes up available space */
+  margin-right: 1rem; /* Add some spacing between dashboard and slider */
+}
+
+/* Position the throttle slider to the far right */
+.throttle-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Adjust the slider dimensions */
+.throttle-slider {
+  width: 100px;
+  height: 300px; /* Adjust as necessary to match the height of your parameters */
+}
+
 .leaflet-pane {
   z-index: 0 !important;
 }
@@ -440,32 +606,6 @@ onBeforeUnmount(() => {
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   transition: none;
-}
-
-/* Flex container to align dashboard and slider at the top */
-.flex-wrapper {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-/* Dashboard container takes available space */
-.dashboard-container {
-  flex: 1;
-}
-
-/* Position the throttle slider to the far right */
-.throttle-container {
-  margin-left: 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* Adjust the slider dimensions */
-.throttle-slider {
-  width: 100px;
-  height: 300px;  /* Adjust as necessary to match the height of your parameters */
 }
 
 /* Other typography styles */
@@ -485,5 +625,11 @@ onBeforeUnmount(() => {
 /* Optional: style warning icon */
 .warning-icon {
   margin-top: 1rem;
+}
+
+/* Ensure waypoint labels are visible */
+.leaflet-div-icon {
+  background: transparent;
+  border: none;
 }
 </style>

@@ -3,13 +3,17 @@
     <!-- Enhanced Header -->
     <div class="page-header q-mb-lg">
       <div class="row items-center">
-        <q-icon name="map" size="2.5rem" color="primary" class="q-mr-md"/>
+        <q-icon name="map" size="2.5rem" color="primary" class="q-mr-md" />
         <div>
-          <div class="text-h4 text-weight-medium q-mb-xs">Route Information</div>
-          <div class="text-subtitle1 text-grey-7">View route details and waypoint information</div>
+          <div class="text-h4 text-weight-medium q-mb-xs">
+            Route Information
+          </div>
+          <div class="text-subtitle1 text-grey-7">
+            View route details and waypoint information
+          </div>
         </div>
       </div>
-      <q-separator class="q-mt-md" color="grey-4"/>
+      <q-separator class="q-mt-md" color="grey-4" />
     </div>
     <div class="row q-col-gutter-md">
       <!-- Left Column -->
@@ -18,14 +22,18 @@
         <q-card flat bordered class="q-mb-md">
           <q-card-section>
             <div class="text-h6 q-mb-md">Navigation Status</div>
-            <q-banner 
-              :class="isNavigating ? 'bg-green-1 text-green' : 'bg-orange-1 text-orange'"
+            <q-banner
+              :class="
+                isNavigating
+                  ? 'bg-green-1 text-green'
+                  : 'bg-orange-1 text-orange'
+              "
               rounded
             >
               <template v-slot:avatar>
                 <q-icon :name="isNavigating ? 'navigation' : 'gps_off'" />
               </template>
-              {{ isNavigating ? 'Navigating' : 'Not Navigating' }}
+              {{ isNavigating ? "Navigating" : "Not Navigating" }}
             </q-banner>
           </q-card-section>
         </q-card>
@@ -77,7 +85,9 @@
                 <tr v-for="(item, index) in waypoints" :key="index">
                   <td class="text-left text-weight-medium">{{ index + 1 }}</td>
                   <td class="text-left">{{ CF.formatCoordinates(item[0]) }}</td>
-                  <td class="text-left text-primary">{{ formatTimeArray(item[1]) }}</td>
+                  <td class="text-left text-primary">
+                    {{ formatTimeArray(item[1]) }}
+                  </td>
                 </tr>
               </tbody>
             </q-markup-table>
@@ -89,7 +99,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, watch, computed } from "vue";
 import * as CF from "src/utils/calculation_functions";
 
 const waypoints = ref([]);
@@ -98,42 +108,57 @@ const plannedSpeed = ref(0);
 
 // Computed properties for route details
 const totalDistance = computed(() => {
-  if (!waypoints.value.length) return '0';
-  const coordinates = waypoints.value.map(wp => wp[0]);
-  return CF.get_total_route_distance(coordinates).toFixed(1);
+  if (!waypoints.value.length) return "0.000";
+  const coordinates = waypoints.value.map((wp) => wp[0]);
+  return CF.get_total_route_distance(coordinates).toFixed(3);
 });
 
 const startTime = computed(() => {
-  if (!waypoints.value.length) return '-';
+  if (!waypoints.value.length) return "-";
   return formatTimeArray(waypoints.value[0][1]);
 });
 
 const endTime = computed(() => {
-  if (!waypoints.value.length) return '-';
+  if (!waypoints.value.length) return "-";
   return formatTimeArray(waypoints.value[waypoints.value.length - 1][1]);
 });
 
 // Watch for planned speed updates
-watch(() => localStorage.getItem('plannedSpeed'), (newValue) => {
-  plannedSpeed.value = newValue ? Number(newValue) : 0;
-}, { immediate: true });
+watch(
+  () => localStorage.getItem("plannedSpeed"),
+  (newValue) => {
+    plannedSpeed.value = newValue ? Number(newValue) : 0;
+  },
+  { immediate: true }
+);
 
 // Watch for navigation state changes
-watch(() => localStorage.getItem('isNavigating'), (newValue) => {
-  isNavigating.value = newValue === 'true';
-}, { immediate: true });
+watch(
+  () => localStorage.getItem("isNavigating"),
+  (newValue) => {
+    isNavigating.value = newValue === "true";
+  },
+  { immediate: true }
+);
 
 // Watch for ETA updates
-watch(() => localStorage.getItem('waypointsETA'), (newValue) => {
-  if (newValue) {
-    waypoints.value = JSON.parse(newValue);
-  }
-}, { immediate: true });
+watch(
+  () => localStorage.getItem("waypointsETA"),
+  (newValue) => {
+    if (newValue) {
+      waypoints.value = JSON.parse(newValue);
+    }
+  },
+  { immediate: true }
+);
 
 function formatTimeArray(timeArray) {
   if (!Array.isArray(timeArray)) return timeArray;
   const [hours, minutes, seconds] = timeArray;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+    2,
+    "0"
+  )}:${String(seconds).padStart(2, "0")}`;
 }
 </script>
 
@@ -144,13 +169,15 @@ function formatTimeArray(timeArray) {
   border-radius: 8px;
 }
 
-.status-card, .waypoints-card {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+.status-card,
+.waypoints-card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
 }
 
-.status-card:hover, .waypoints-card:hover {
-  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+.status-card:hover,
+.waypoints-card:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
 }
 
 .status-banner {
@@ -158,14 +185,14 @@ function formatTimeArray(timeArray) {
 }
 
 .waypoints-table {
-  border: 1px solid rgba(0,0,0,0.12);
+  border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 4px;
 }
 
 .waypoints-table th {
   padding: 16px;
   font-size: 0.95em;
-  border-bottom: 2px solid rgba(0,0,0,0.12);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.12);
 }
 
 .waypoints-table td {
@@ -174,16 +201,16 @@ function formatTimeArray(timeArray) {
 }
 
 .waypoints-table tr:hover {
-  background-color: rgba(0,0,0,0.03);
+  background-color: rgba(0, 0, 0, 0.03);
 }
 
 .details-card {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
 }
 
 .details-card:hover {
-  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
 }
 
 .detail-item {
@@ -194,6 +221,6 @@ function formatTimeArray(timeArray) {
 
 .detail-item .q-icon {
   font-size: 1.2em;
-  color: #1976D2;
+  color: #1976d2;
 }
 </style>

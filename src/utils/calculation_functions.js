@@ -14,16 +14,16 @@ export function get_time() {
 export async function get_route_coordinates(index = null) {
   try {
     // Get GPX data from localStorage
-    const data = localStorage.getItem('currentGPXFile');
+    const data = localStorage.getItem("currentGPXFile");
     if (!data) {
-      throw new Error('No GPX file loaded. Please upload a route first.');
+      throw new Error("No GPX file loaded. Please upload a route first.");
     }
 
     const parser = new XMLParser({
       ignoreAttributes: false,
-      attributeNamePrefix: "" // This removes the @ prefix
+      attributeNamePrefix: "", // This removes the @ prefix
     });
-    
+
     let parsedResult = parser.parse(data);
     console.log("Parsed result:", parsedResult);
 
@@ -127,7 +127,11 @@ export function convert_unit(operation, value) {
   }
 }
 
-export async function get_eta_for_waypoints(planned_start_time, planned_speed, index = null) {
+export async function get_eta_for_waypoints(
+  planned_start_time,
+  planned_speed,
+  index = null
+) {
   let route = await get_route_coordinates(); // Assumes route[0] is the planned starting waypoint
   let start_time = convert_unit("to-seconds", planned_start_time);
 
@@ -156,10 +160,15 @@ export async function get_eta_for_waypoints(planned_start_time, planned_speed, i
   }
 }
 
-export async function get_estimated_delay(start_time, eta_list, waypoint_index, current_speed) {
+export async function get_estimated_delay(
+  start_time,
+  eta_list,
+  waypoint_index,
+  current_speed
+) {
   let route = await get_route_coordinates();
   // Instead of getting speed here, we use the passed current_speed.
-  let current_location = [59.64795, 18.81407];  // Simulated current position
+  let current_location = [59.64795, 18.81407]; // Simulated current position
 
   let planned_start_time = convert_unit("to-seconds", start_time);
   let planned_eta = convert_unit("to-seconds", eta_list[waypoint_index][1]);
@@ -195,8 +204,8 @@ export function get_current_location() {
     return Math.random() * (max - min) + min;
   }
   // Simulate GPS readings by returning random coordinates near a base location
-  const baseLocation = [59.65514, 18.81534]; // Replace with your base location
-  const randomOffset = () => (getRandomInRange(0.3, 0.8)) * 0.001; // Small random offset
+  const baseLocation = [59.65614, 18.81724]; // Replace with your base location
+  const randomOffset = () => getRandomInRange(0.3, 0.8) * 0.001; // Small random offset
   return [
     baseLocation[0] + randomOffset(), // Random latitude
     baseLocation[1] + randomOffset(), // Random longitude
@@ -205,18 +214,18 @@ export function get_current_location() {
 
 export function formatCoordinates(coords) {
   if (!Array.isArray(coords)) return coords;
-  
+
   const [lat, lon] = coords;
-  
+
   function formatLatLon(value, isLat) {
     const abs = Math.abs(value);
     const degrees = Math.floor(abs);
     const minutes = (abs - degrees) * 60;
-    const direction = isLat 
-      ? (value >= 0 ? 'N' : 'S')
-      : (value >= 0 ? 'E' : 'W');
-    
-    return `${String(degrees).padStart(2, '0')}°${minutes.toFixed(3)}'${direction}`;
+    const direction = isLat ? (value >= 0 ? "N" : "S") : value >= 0 ? "E" : "W";
+
+    return `${String(degrees).padStart(2, "0")}°${minutes.toFixed(
+      3
+    )}'${direction}`;
   }
 
   return `${formatLatLon(lat, true)}, ${formatLatLon(lon, false)}`;
@@ -224,16 +233,17 @@ export function formatCoordinates(coords) {
 
 export function get_bearing(coord1, coord2) {
   // Convert latitudes/longitudes to radians
-  const lat1 = coord1[0] * Math.PI / 180;
-  const lat2 = coord2[0] * Math.PI / 180;
-  const deltaLon = (coord2[1] - coord1[1]) * Math.PI / 180;
-  
+  const lat1 = (coord1[0] * Math.PI) / 180;
+  const lat2 = (coord2[0] * Math.PI) / 180;
+  const deltaLon = ((coord2[1] - coord1[1]) * Math.PI) / 180;
+
   // Calculate bearing using the haversine formula components
   const y = Math.sin(deltaLon) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) -
-            Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
-  const brng = Math.atan2(y, x) * 180 / Math.PI;
-  
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
+  const brng = (Math.atan2(y, x) * 180) / Math.PI;
+
   // Ensure the bearing is normalized to 0-360 degrees
   return (brng + 360) % 360;
 }
@@ -247,11 +257,8 @@ export function calculateRouteMidpoint(coordinates) {
   // Calculate the average of all latitudes and longitudes
   const sumLat = coordinates.reduce((sum, coord) => sum + coord[0], 0);
   const sumLng = coordinates.reduce((sum, coord) => sum + coord[1], 0);
-  
-  return [
-    sumLat / coordinates.length,
-    sumLng / coordinates.length
-  ];
+
+  return [sumLat / coordinates.length, sumLng / coordinates.length];
 }
 
 export function calculate_dot_product(passed_waypoint, next_waypoint) {
@@ -261,13 +268,13 @@ export function calculate_dot_product(passed_waypoint, next_waypoint) {
   // Create a vector representing the route's direction from the passed waypoint to the next waypoint.
   const direction = [
     next_waypoint[0] - passed_waypoint[0],
-    next_waypoint[1] - passed_waypoint[1]
+    next_waypoint[1] - passed_waypoint[1],
   ];
 
   // Create a vector from the passed waypoint to the current location.
   const toCurrent = [
     current[0] - passed_waypoint[0],
-    current[1] - passed_waypoint[1]
+    current[1] - passed_waypoint[1],
   ];
 
   // Calculate dot product between the two vectors.
@@ -275,4 +282,27 @@ export function calculate_dot_product(passed_waypoint, next_waypoint) {
 
   // If dot product is positive, the current location is "past" the passed waypoint.
   return dot > 0;
+}
+
+// Add proper error handling for async operations
+export async function sendMessage(message) {
+  try {
+    return await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Message timeout"));
+      }, 5000); // 5 second timeout
+
+      chrome.runtime.sendMessage(message, (response) => {
+        clearTimeout(timeout);
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve(response);
+        }
+      });
+    });
+  } catch (error) {
+    console.warn("Message error:", error);
+    return null; // or a suitable fallback value
+  }
 }
