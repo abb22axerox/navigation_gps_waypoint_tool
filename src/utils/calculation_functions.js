@@ -156,11 +156,10 @@ export async function get_eta_for_waypoints(planned_start_time, planned_speed, i
   }
 }
 
-export async function get_estimated_delay(start_time, eta_list, waypoint_index) {
+export async function get_estimated_delay(start_time, eta_list, waypoint_index, current_speed) {
   let route = await get_route_coordinates();
-  // current_location = GPS_location.read_gps_data()
-  let current_location = [59.64795, 18.81407];
-  let current_speed = await get_speed();
+  // Instead of getting speed here, we use the passed current_speed.
+  let current_location = [59.64795, 18.81407];  // Simulated current position
 
   let planned_start_time = convert_unit("to-seconds", start_time);
   let planned_eta = convert_unit("to-seconds", eta_list[waypoint_index][1]);
@@ -180,8 +179,8 @@ export async function get_estimated_delay(start_time, eta_list, waypoint_index) 
   let delay = Math.abs(raw_delay);
   let formatted_delay = convert_unit("format-seconds", delay);
 
-  // Calculate throttle_alert
-  let max_delay_threshold = 300; // 5 minutes
+  // Calculate throttle_alert based on a maximum delay threshold.
+  let max_delay_threshold = 300; // 5 minutes threshold (in seconds)
   let throttle_alert =
     (Math.min(delay, max_delay_threshold) / max_delay_threshold) *
     (is_delay_positive ? 1 : -1);
@@ -196,7 +195,7 @@ export function get_current_location() {
     return Math.random() * (max - min) + min;
   }
   // Simulate GPS readings by returning random coordinates near a base location
-  const baseLocation = [59.65514, 18.82034]; // Replace with your base location
+  const baseLocation = [59.65514, 18.81534]; // Replace with your base location
   const randomOffset = () => (getRandomInRange(0.3, 0.8)) * 0.001; // Small random offset
   return [
     baseLocation[0] + randomOffset(), // Random latitude
@@ -253,4 +252,27 @@ export function calculateRouteMidpoint(coordinates) {
     sumLat / coordinates.length,
     sumLng / coordinates.length
   ];
+}
+
+export function calculate_dot_product(passed_waypoint, next_waypoint) {
+  // Get the current GPS location
+  const current = get_current_location(); // returns [lat, lon]
+
+  // Create a vector representing the route's direction from the passed waypoint to the next waypoint.
+  const direction = [
+    next_waypoint[0] - passed_waypoint[0],
+    next_waypoint[1] - passed_waypoint[1]
+  ];
+
+  // Create a vector from the passed waypoint to the current location.
+  const toCurrent = [
+    current[0] - passed_waypoint[0],
+    current[1] - passed_waypoint[1]
+  ];
+
+  // Calculate dot product between the two vectors.
+  const dot = direction[0] * toCurrent[0] + direction[1] * toCurrent[1];
+
+  // If dot product is positive, the current location is "past" the passed waypoint.
+  return dot > 0;
 }
