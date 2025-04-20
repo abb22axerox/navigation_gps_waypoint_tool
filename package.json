@@ -19,11 +19,13 @@
     "fast-xml-parser": "^5.2.0",
     "leaflet": "^1.9.4",
     "leaflet-rotate": "^0.2.8",
+    "net": "^1.0.2",
     "pinia": "^3.0.1",
     "quasar": "^2.16.0",
     "vue": "^3.4.18",
     "vue-router": "^4.0.0",
     "vue3-leaflet": "^1.0.50",
+    "ws": "^8.18.1",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
@@ -35,5 +37,8 @@
     "node": "^28 || ^26 || ^24 || ^22 || ^20 || ^18",
     "npm": ">= 6.13.4",
     "yarn": ">= 1.21.1"
-  }
+  },
+  "main": "postcss.config.js",
+  "keywords": [],
+  "license": "ISC"
 }

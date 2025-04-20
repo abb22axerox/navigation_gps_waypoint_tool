@@ -200,16 +200,43 @@ export async function get_estimated_delay(
 }
 
 export function get_current_location() {
-  function getRandomInRange(min, max) {
-    return Math.random() * (max - min) + min;
-  }
-  // Simulate GPS readings by returning random coordinates near a base location
-  const baseLocation = [59.65614, 18.81724]; // Replace with your base location
-  const randomOffset = () => getRandomInRange(0.3, 0.8) * 0.001; // Small random offset
-  return [
-    baseLocation[0] + randomOffset(), // Random latitude
-    baseLocation[1] + randomOffset(), // Random longitude
-  ];
+  // function getRandomInRange(min, max) {
+  //   return Math.random() * (max - min) + min;
+  // }
+  // // Simulate GPS readings by returning random coordinates near a base location
+  // const baseLocation = [59.65614, 18.81724]; // Replace with your base location
+  // const randomOffset = () => getRandomInRange(0.3, 0.8) * 0.001; // Small random offset
+  // return [
+  //   baseLocation[0] + randomOffset(), // Random latitude
+  //   baseLocation[1] + randomOffset(), // Random longitude
+  // ];
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(gpsDirectWebSocketUrl);
+
+    socket.addEventListener("open", () => {
+      console.log("Connected to GPS2ip direct WebSocket");
+    });
+
+    socket.addEventListener("message", (event) => {
+      const msg = event.data;
+      // Assuming the message is "latitude,longitude" format
+      const parts = msg.split(",");
+      if (parts.length >= 2) {
+        const lat = parseFloat(parts[0]);
+        const lon = parseFloat(parts[1]);
+        resolve([lat, lon]);
+      } else {
+        console.warn("Unexpected data format:", msg);
+        resolve(null);
+      }
+      socket.close();
+    });
+
+    socket.addEventListener("error", (err) => {
+      console.error("Direct WebSocket error:", err);
+      reject(err);
+    });
+  });
 }
 
 export function formatCoordinates(coords) {
@@ -306,3 +333,6 @@ export async function sendMessage(message) {
     return null; // or a suitable fallback value
   }
 }
+
+// Define your GPS2ip WebSocket endpoint
+const gpsDirectWebSocketUrl = "ws://192.168.1.1:9091"; // Change port as needed

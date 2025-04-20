@@ -15,6 +15,25 @@
       </div>
       <q-separator class="q-mt-md" color="grey-4" />
     </div>
+
+    <!-- New Phone Connection Banner -->
+    <q-banner
+      v-if="gpsConnected"
+      class="bg-green-2 text-green"
+      rounded
+      style="margin-bottom: 1rem"
+    >
+      Phone Connected
+    </q-banner>
+    <q-banner
+      v-else
+      class="bg-red-1 text-red"
+      rounded
+      style="margin-bottom: 1rem"
+    >
+      Phone Not Connected
+    </q-banner>
+
     <div class="row q-col-gutter-md">
       <!-- Left Column -->
       <div class="col-12 col-sm-4">
@@ -105,6 +124,7 @@ import * as CF from "src/utils/calculation_functions";
 const waypoints = ref([]);
 const isNavigating = ref(false);
 const plannedSpeed = ref(0);
+const gpsConnected = ref(false);
 
 // Computed properties for route details
 const totalDistance = computed(() => {
@@ -160,6 +180,20 @@ function formatTimeArray(timeArray) {
     "0"
   )}:${String(seconds).padStart(2, "0")}`;
 }
+
+// Check GPS connection on page mount
+async function checkGPS() {
+  try {
+    const loc = await CF.get_gps_location();
+    gpsConnected.value = !!loc;
+  } catch (err) {
+    gpsConnected.value = false;
+  }
+}
+
+onMounted(() => {
+  checkGPS();
+});
 </script>
 
 <style scoped>
