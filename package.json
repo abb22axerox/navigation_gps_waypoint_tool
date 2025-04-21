@@ -16,6 +16,8 @@
     "@quasar/extras": "^1.16.4",
     "@vue-leaflet/vue-leaflet": "^0.10.1",
     "axios": "^1.2.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
     "fast-xml-parser": "^5.2.0",
     "leaflet": "^1.9.4",
     "leaflet-rotate": "^0.2.8",
@@ -31,6 +33,7 @@
   "devDependencies": {
     "@quasar/app-vite": "^2.1.0",
     "autoprefixer": "^10.4.2",
+    "concurrently": "^9.1.2",
     "postcss": "^8.4.14"
   },
   "engines": {
@@ -40,5 +43,13 @@
   },
   "main": "postcss.config.js",
   "keywords": [],
-  "license": "ISC"
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abb22axerox/navigation_gps_waypoint_tool.git"
+  },
+  "bugs": {
+    "url": "https://github.com/abb22axerox/navigation_gps_waypoint_tool/issues"
+  },
+  "homepage": "https://github.com/abb22axerox/navigation_gps_waypoint_tool#readme"
 }

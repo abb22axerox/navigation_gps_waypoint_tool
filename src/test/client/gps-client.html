@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+const socket = new WebSocket("ws://192.168.1.151:8080");
+
+socket.onopen = () => {
+  console.log("Connected");
+
+  navigator.geolocation.watchPosition(pos => {
+    const coords = {
+      lat: pos.coords.latitude,
+      lon: pos.coords.longitude,
+      time: new Date().toISOString()
+    };
+    console.log("Sending", coords);
+    socket.send(JSON.stringify(coords));
+  }, err => {
+    console.error("Geolocation error", err);
+  }, { enableHighAccuracy: true });
+};
+</script>
+<h2>📍 GPS Tracker Running...</h2>
+</body>
+</html>

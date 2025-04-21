@@ -86,49 +86,34 @@
         </q-card>
       </div>
 
-      <!-- GPS Connection Card -->
+      <!-- GPS Data Card -->
       <div class="col-12 col-sm-6">
         <q-card class="settings-card" bordered>
           <q-card-section>
-            <div class="text-h6 q-mb-md">GPS Connection</div>
+            <div class="text-h6 q-mb-md">GPS Data</div>
 
             <div class="row items-center q-mb-md">
               <q-btn
-                :color="gpsConnected ? 'negative' : 'primary'"
-                :label="gpsConnected ? 'Disconnect GPS' : 'Connect to GPS'"
-                @click="toggleGPSConnection"
-                :loading="connecting"
+                color="primary"
+                label="Fetch Latest GPS Data"
+                @click="fetchLatestGPS"
                 class="full-width"
-              >
-                <template v-slot:loading>
-                  <q-spinner-dots />
-                </template>
-              </q-btn>
+              />
             </div>
 
-            <q-banner v-if="gpsConnected" class="bg-green-2 text-green" rounded>
-              <template v-slot:avatar>
-                <q-icon name="gps_fixed" color="green" />
-              </template>
-              GPS Connected
-            </q-banner>
-
-            <q-banner v-else-if="gpsError" class="bg-red-1 text-red" rounded>
-              <template v-slot:avatar>
-                <q-icon name="gps_off" color="red" />
-              </template>
-              {{ gpsError }}
-            </q-banner>
-
-            <q-banner
-              v-if="gpsData"
-              class="bg-blue-1 text-blue q-mt-md"
-              rounded
-            >
+            <q-banner v-if="gpsData" class="bg-blue-1 text-blue q-mt-md" rounded>
               <template v-slot:avatar>
                 <q-icon name="info" color="blue" />
               </template>
               Latest GPS Data: {{ gpsData }}
+            </q-banner>
+
+            <q-banner
+              v-else
+              class="bg-grey-2 text-grey-9 q-mt-md"
+              rounded
+            >
+              No GPS data received yet.
             </q-banner>
           </q-card-section>
         </q-card>
@@ -192,11 +177,40 @@ const dense = ref(true);
 const plannedTime = ref("");
 const useCurrentTime = ref(false);
 
-const gpsConnected = ref(false);
-const connecting = ref(false);
-const gpsError = ref(null);
+// Remove WebSocket-related reactive variables
 const gpsData = ref("");
-let gpsSocket = null;
+
+// Remove connection functions and instead add a function to fetch the latest GPS coordinate.
+async function fetchLatestGPS() {
+  try {
+    const coords = await CF.get_current_location();
+    if (coords) {
+      gpsData.value = JSON.stringify(coords);
+      $q.notify({
+        type: "positive",
+        message: "Fetched latest GPS data successfully",
+        position: "top",
+        timeout: 2000,
+      });
+    } else {
+      gpsData.value = "";
+      $q.notify({
+        type: "negative",
+        message: "No GPS data available",
+        position: "top",
+        timeout: 2000,
+      });
+    }
+  } catch (err) {
+    console.error("Failed to fetch GPS data", err);
+    $q.notify({
+      type: "negative",
+      message: "Error fetching GPS data",
+      position: "top",
+      timeout: 2000,
+    });
+  }
+}
 
 function handleFileUpload() {
   if (!gpxFile.value) return;
@@ -288,68 +302,6 @@ function handleCurrentTimeToggle(value) {
   }
 }
 
-async function connectGPS() {
-  connecting.value = true;
-  gpsError.value = null;
-  try {
-    // Connect directly to the GPS2ip WebSocket
-    gpsSocket = new WebSocket("ws://192.168.1.223:9091");
-    gpsSocket.addEventListener("open", () => {
-      gpsConnected.value = true;
-      connecting.value = false;
-      $q.notify({
-        type: "positive",
-        message: "GPS Connected Successfully",
-        position: "top",
-      });
-    });
-    gpsSocket.addEventListener("message", (event) => {
-      console.log("Received GPS Data:", event.data);
-      gpsData.value = event.data;
-    });
-    gpsSocket.addEventListener("error", (error) => {
-      gpsError.value = "Failed to connect to GPS";
-      connecting.value = false;
-      gpsConnected.value = false;
-      console.error("Direct WebSocket error:", error);
-      $q.notify({
-        type: "negative",
-        message: "GPS Connection Failed",
-        position: "top",
-      });
-    });
-    gpsSocket.addEventListener("close", () => {
-      gpsConnected.value = false;
-      connecting.value = false;
-    });
-  } catch (err) {
-    gpsError.value = "Failed to connect to GPS";
-    connecting.value = false;
-    console.error("GPS connection error:", err);
-  }
-}
-
-function disconnectGPS() {
-  if (gpsSocket) {
-    gpsSocket.close();
-    gpsSocket = null;
-  }
-  gpsConnected.value = false;
-  $q.notify({
-    type: "info",
-    message: "GPS Disconnected",
-    position: "top",
-  });
-}
-
-function toggleGPSConnection() {
-  if (gpsConnected.value) {
-    disconnectGPS();
-  } else {
-    connectGPS();
-  }
-}
-
 onMounted(() => {
   const savedFileName = localStorage.getItem("currentGPXFileName");
   if (savedFileName) {
@@ -380,10 +332,6 @@ onMounted(() => {
         .join(":");
     }
   }
-});
-
-onUnmounted(() => {
-  disconnectGPS();
 });
 </script>
 

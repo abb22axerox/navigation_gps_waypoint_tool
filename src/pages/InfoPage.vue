@@ -16,31 +16,14 @@
       <q-separator class="q-mt-md" color="grey-4" />
     </div>
 
-    <!-- New Phone Connection Banner -->
-    <q-banner
-      v-if="gpsConnected"
-      class="bg-green-2 text-green"
-      rounded
-      style="margin-bottom: 1rem"
-    >
-      Phone Connected
-    </q-banner>
-    <q-banner
-      v-else
-      class="bg-red-1 text-red"
-      rounded
-      style="margin-bottom: 1rem"
-    >
-      Phone Not Connected
-    </q-banner>
-
     <div class="row q-col-gutter-md">
       <!-- Left Column -->
       <div class="col-12 col-sm-4">
-        <!-- Navigation Status Card -->
+        <!-- Navigation & GPS2IP Status Card -->
         <q-card flat bordered class="q-mb-md">
           <q-card-section>
-            <div class="text-h6 q-mb-md">Navigation Status</div>
+            <div class="text-h6 q-mb-md">Status</div>
+            <!-- Existing Navigation Status -->
             <q-banner
               :class="
                 isNavigating
@@ -48,11 +31,22 @@
                   : 'bg-orange-1 text-orange'
               "
               rounded
+              class="q-mb-sm"
             >
               <template v-slot:avatar>
                 <q-icon :name="isNavigating ? 'navigation' : 'gps_off'" />
               </template>
               {{ isNavigating ? "Navigating" : "Not Navigating" }}
+            </q-banner>
+            <!-- New GPS2IP Connection Status -->
+            <q-banner
+              :class="gpsConnected ? 'bg-green-1 text-green' : 'bg-red-1 text-red'"
+              rounded
+            >
+              <template v-slot:avatar>
+                <q-icon :name="gpsConnected ? 'wifi' : 'wifi_off'" />
+              </template>
+              {{ gpsConnected ? "GPS2IP Connected" : "GPS2IP Not Connected" }}
             </q-banner>
           </q-card-section>
         </q-card>
@@ -175,16 +169,13 @@ watch(
 function formatTimeArray(timeArray) {
   if (!Array.isArray(timeArray)) return timeArray;
   const [hours, minutes, seconds] = timeArray;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
-    2,
-    "0"
-  )}:${String(seconds).padStart(2, "0")}`;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-// Check GPS connection on page mount
+// Check GPS2IP connection on page mount
 async function checkGPS() {
   try {
-    const loc = await CF.get_gps_location();
+    const loc = await CF.get_current_location();
     gpsConnected.value = !!loc;
   } catch (err) {
     gpsConnected.value = false;
@@ -197,62 +188,52 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ...existing styles... */
 .page-header {
   background: linear-gradient(to right, rgba(25, 118, 210, 0.05), transparent);
   padding: 1.5rem;
   border-radius: 8px;
 }
-
 .status-card,
 .waypoints-card {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
 }
-
 .status-card:hover,
 .waypoints-card:hover {
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
 }
-
 .status-banner {
   font-size: 1.1em;
 }
-
 .waypoints-table {
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 4px;
 }
-
 .waypoints-table th {
   padding: 16px;
   font-size: 0.95em;
   border-bottom: 2px solid rgba(0, 0, 0, 0.12);
 }
-
 .waypoints-table td {
   padding: 12px 16px;
   font-size: 0.95em;
 }
-
 .waypoints-table tr:hover {
   background-color: rgba(0, 0, 0, 0.03);
 }
-
 .details-card {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
 }
-
 .details-card:hover {
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
 }
-
 .detail-item {
   display: flex;
   align-items: center;
   font-size: 1.1em;
 }
-
 .detail-item .q-icon {
   font-size: 1.2em;
   color: #1976d2;
