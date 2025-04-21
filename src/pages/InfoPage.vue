@@ -46,7 +46,12 @@
               <template v-slot:avatar>
                 <q-icon :name="gpsConnected ? 'wifi' : 'wifi_off'" />
               </template>
-              {{ gpsConnected ? "GPS2IP Connected" : "GPS2IP Not Connected" }}
+              <div class="column">
+                {{ gpsConnected ? "GPS2IP Connected" : "GPS2IP Not Connected" }}
+                <div v-if="gpsError" class="text-caption text-grey-8">
+                  {{ gpsError }}
+                </div>
+              </div>
             </q-banner>
           </q-card-section>
         </q-card>
@@ -112,13 +117,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, onBeforeUnmount, watch, computed } from "vue";
 import * as CF from "src/utils/calculation_functions";
+import { gpsListener } from "src/boot/gps-listener";
 
 const waypoints = ref([]);
 const isNavigating = ref(false);
 const plannedSpeed = ref(0);
 const gpsConnected = ref(false);
+const gpsError = ref(null);
 
 // Computed properties for route details
 const totalDistance = computed(() => {
@@ -172,7 +179,27 @@ function formatTimeArray(timeArray) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-// Check GPS2IP connection on page mount
+// Setup real-time GPS connection monitoring
+function setupGpsListener() {
+  gpsListener.on('location', () => {
+    gpsConnected.value = true;
+    gpsError.value = null;
+  });
+
+  gpsListener.on('error', (error) => {
+    gpsConnected.value = false;
+    gpsError.value = error.message === 'GPS data stream stopped' 
+      ? 'No GPS updates received' 
+      : error.message;
+  });
+
+  gpsListener.on('close', () => {
+    gpsConnected.value = false;
+    gpsError.value = 'Connection closed';
+  });
+}
+
+// Initial GPS check
 async function checkGPS() {
   try {
     const loc = await CF.get_current_location();
@@ -182,8 +209,18 @@ async function checkGPS() {
   }
 }
 
+// Lifecycle hooks
 onMounted(() => {
+  setupGpsListener();
   checkGPS();
+});
+
+// Clean up listeners when component unmounts
+onBeforeUnmount(() => {
+  gpsListener.stop(); // This will clear the interval
+  gpsListener.removeAllListeners('location');
+  gpsListener.removeAllListeners('error');
+  gpsListener.removeAllListeners('close');
 });
 </script>
 

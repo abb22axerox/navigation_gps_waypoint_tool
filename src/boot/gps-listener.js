@@ -8,6 +8,8 @@ class GpsListener extends EventEmitter {
     this.latest = null  // will store the latest coordinates
     // Optionally increase max listeners to avoid warnings:
     this.setMaxListeners(20)
+    this.lastUpdate = Date.now()
+    this.checkInterval = null
   }
 
   start() {
@@ -16,29 +18,37 @@ class GpsListener extends EventEmitter {
     this.socket.onmessage = (event) => {
       const nmeaData = event.data.trim()
       console.log('📍 GPS Data from WebSocket:', nmeaData)
+      this.lastUpdate = Date.now() // Update timestamp on each message
 
       const parts = nmeaData.split(',')
       if (parts[0].includes('$GPRMC') && parts[2] === 'A') {
-        // Parse latitude.
+        // Parse latitude - Format is DDMM.MMMM
         const rawLat = parseFloat(parts[3])
-        const latDeg = Math.floor(rawLat / 100)
-        const latMin = rawLat % 100
-        let latitude = latDeg + latMin / 60
+        const latDeg = Math.floor(rawLat / 100) // Extract degrees
+        const latMin = (rawLat % 100) / 60 // Convert minutes to decimal degrees
+        let latitude = latDeg + latMin
         if (parts[4] === 'S') latitude = -latitude
 
-        // Parse longitude.
+        // Parse longitude - Format is DDDMM.MMMM
         const rawLon = parseFloat(parts[5])
-        const lonDeg = Math.floor(rawLon / 100)
-        const lonMin = rawLon % 100
-        let longitude = lonDeg + lonMin / 60
+        const lonDeg = Math.floor(rawLon / 100) // Extract degrees
+        const lonMin = (rawLon % 100) / 60 // Convert minutes to decimal degrees
+        let longitude = lonDeg + lonMin
         if (parts[6] === 'W') longitude = -longitude
 
-        // Store as [longitude, latitude] if that’s your desired order.
-        this.latest = [longitude, latitude]
-        // Also emit the event so any pending promise resolves.
+        // For Leaflet, store as [latitude, longitude]
+        this.latest = [latitude, longitude]
         this.emit('location', this.latest)
       }
     }
+
+    // Start checking for stale data
+    this.checkInterval = setInterval(() => {
+      const timeSinceLastUpdate = Date.now() - this.lastUpdate
+      if (timeSinceLastUpdate > 5000) { // 5 seconds threshold
+        this.emit('error', new Error('GPS data stream stopped'))
+      }
+    }, 1000)
 
     this.socket.onerror = (error) => {
       console.error('GPS WebSocket error:', error)
@@ -54,6 +64,9 @@ class GpsListener extends EventEmitter {
   }
 
   stop() {
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval)
+    }
     if (this.socket) {
       this.socket.close()
     }

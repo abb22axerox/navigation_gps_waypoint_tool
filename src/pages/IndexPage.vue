@@ -418,7 +418,7 @@ function parseTimeString(timeStr) {
   return [hours, minutes, seconds, 0];
 }
 
-// onMounted: load route data and restore navigation if active.
+// Change in onMounted
 onMounted(async () => {
   currentGPXFile.value = (
     localStorage.getItem("currentGPXFileName") || ""
@@ -438,7 +438,7 @@ onMounted(async () => {
     }
     // Restore navigation if active.
     if (isNavigating.value) {
-      const initialPos = CF.get_current_location();
+      const initialPos = await CF.get_current_location(); // Add await here
       currentBoatPos.value = initialPos;
       prevPos = initialPos;
       prevTime = CF.convert_unit("to-seconds", CF.get_time());
@@ -482,7 +482,7 @@ async function startNavigation() {
     return;
   }
 
-  const initialPos = CF.get_current_location();
+  const initialPos = await CF.get_current_location(); // Add await here
   currentBoatPos.value = initialPos;
   prevPos = initialPos;
   prevTime = CF.convert_unit("to-seconds", CF.get_time());

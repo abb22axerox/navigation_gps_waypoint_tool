@@ -86,34 +86,46 @@
         </q-card>
       </div>
 
-      <!-- GPS Data Card -->
+      <!-- GPS2IP Settings Card -->
       <div class="col-12 col-sm-6">
         <q-card class="settings-card" bordered>
           <q-card-section>
-            <div class="text-h6 q-mb-md">GPS Data</div>
+            <div class="text-h6 q-mb-md">GPS2IP Connection Settings</div>
+            
+            <q-input
+              class="q-mb-md"
+              filled
+              v-model="gps2ipHost"
+              label="Phone IP Address"
+              stack-label
+              :dense="dense"
+              @update:model-value="handleGpsSettingsUpdate"
+            >
+              <template v-slot:append>
+                <q-icon name="phone_iphone" />
+              </template>
+            </q-input>
 
-            <div class="row items-center q-mb-md">
-              <q-btn
-                color="primary"
-                label="Fetch Latest GPS Data"
-                @click="fetchLatestGPS"
-                class="full-width"
-              />
-            </div>
+            <q-input
+              class="q-mb-md"
+              filled
+              v-model.number="gps2ipPort"
+              type="number"
+              label="Port"
+              stack-label
+              :dense="dense"
+              @update:model-value="handleGpsSettingsUpdate"
+            >
+              <template v-slot:append>
+                <q-icon name="settings_ethernet" />
+              </template>
+            </q-input>
 
-            <q-banner v-if="gpsData" class="bg-blue-1 text-blue q-mt-md" rounded>
+            <q-banner v-if="gpsSettings" class="bg-blue-1 text-blue q-mt-md" rounded>
               <template v-slot:avatar>
                 <q-icon name="info" color="blue" />
               </template>
-              Latest GPS Data: {{ gpsData }}
-            </q-banner>
-
-            <q-banner
-              v-else
-              class="bg-grey-2 text-grey-9 q-mt-md"
-              rounded
-            >
-              No GPS data received yet.
+              Current Settings: {{ gps2ipHost }}:{{ gps2ipPort }}
             </q-banner>
           </q-card-section>
         </q-card>
@@ -177,40 +189,9 @@ const dense = ref(true);
 const plannedTime = ref("");
 const useCurrentTime = ref(false);
 
-// Remove WebSocket-related reactive variables
-const gpsData = ref("");
-
-// Remove connection functions and instead add a function to fetch the latest GPS coordinate.
-async function fetchLatestGPS() {
-  try {
-    const coords = await CF.get_current_location();
-    if (coords) {
-      gpsData.value = JSON.stringify(coords);
-      $q.notify({
-        type: "positive",
-        message: "Fetched latest GPS data successfully",
-        position: "top",
-        timeout: 2000,
-      });
-    } else {
-      gpsData.value = "";
-      $q.notify({
-        type: "negative",
-        message: "No GPS data available",
-        position: "top",
-        timeout: 2000,
-      });
-    }
-  } catch (err) {
-    console.error("Failed to fetch GPS data", err);
-    $q.notify({
-      type: "negative",
-      message: "Error fetching GPS data",
-      position: "top",
-      timeout: 2000,
-    });
-  }
-}
+// Add GPS2IP-related reactive variables
+const gps2ipHost = ref('192.168.50.140'); // Default value
+const gps2ipPort = ref(11123); // Default value
 
 function handleFileUpload() {
   if (!gpxFile.value) return;
@@ -302,6 +283,43 @@ function handleCurrentTimeToggle(value) {
   }
 }
 
+// Add function to handle GPS2IP settings update
+function handleGpsSettingsUpdate() {
+  // Validate IP address format
+  const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (!ipRegex.test(gps2ipHost.value)) {
+    $q.notify({
+      type: 'negative',
+      message: 'Invalid IP address format',
+      position: 'top',
+      timeout: 2000
+    });
+    return;
+  }
+
+  // Validate port number
+  if (gps2ipPort.value < 1 || gps2ipPort.value > 65535) {
+    $q.notify({
+      type: 'negative',
+      message: 'Port must be between 1 and 65535',
+      position: 'top',
+      timeout: 2000
+    });
+    return;
+  }
+
+  // Save to localStorage
+  localStorage.setItem('gps2ipHost', gps2ipHost.value);
+  localStorage.setItem('gps2ipPort', gps2ipPort.value);
+
+  $q.notify({
+    type: 'positive',
+    message: 'GPS2IP settings updated successfully',
+    position: 'top',
+    timeout: 2000
+  });
+}
+
 onMounted(() => {
   const savedFileName = localStorage.getItem("currentGPXFileName");
   if (savedFileName) {
@@ -331,6 +349,15 @@ onMounted(() => {
         .map((v) => String(v).padStart(2, "0"))
         .join(":");
     }
+  }
+  // Load saved GPS2IP settings
+  const savedGps2ipHost = localStorage.getItem("gps2ipHost");
+  if (savedGps2ipHost) {
+    gps2ipHost.value = savedGps2ipHost;
+  }
+  const savedGps2ipPort = localStorage.getItem("gps2ipPort");
+  if (savedGps2ipPort) {
+    gps2ipPort.value = Number(savedGps2ipPort);
   }
 });
 </script>
