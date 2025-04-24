@@ -91,41 +91,18 @@
         <q-card class="settings-card" bordered>
           <q-card-section>
             <div class="text-h6 q-mb-md">GPS2IP Connection Settings</div>
-            
-            <q-input
-              class="q-mb-md"
-              filled
-              v-model="gps2ipHost"
-              label="Phone IP Address"
-              stack-label
-              :dense="dense"
-              @update:model-value="handleGpsSettingsUpdate"
-            >
-              <template v-slot:append>
-                <q-icon name="phone_iphone" />
-              </template>
-            </q-input>
-
-            <q-input
-              class="q-mb-md"
-              filled
-              v-model.number="gps2ipPort"
-              type="number"
-              label="Port"
-              stack-label
-              :dense="dense"
-              @update:model-value="handleGpsSettingsUpdate"
-            >
-              <template v-slot:append>
-                <q-icon name="settings_ethernet" />
-              </template>
-            </q-input>
-
-            <q-banner v-if="gpsSettings" class="bg-blue-1 text-blue q-mt-md" rounded>
+            <q-banner class="bg-blue-1 text-blue q-mt-md" rounded>
               <template v-slot:avatar>
                 <q-icon name="info" color="blue" />
               </template>
-              Current Settings: {{ gps2ipHost }}:{{ gps2ipPort }}
+              <div class="column">
+                <div>To start the GPS bridge server:</div>
+                <code class="q-mt-sm">
+                  1. Open terminal<br>
+                  2. Navigate to project root<br>
+                  3. Run: ./start-bridge.sh -h (PHONE SERVER IP) -p (PORT)
+                </code>
+              </div>
             </q-banner>
           </q-card-section>
         </q-card>
@@ -175,7 +152,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted } from "vue";
 import { useQuasar } from "quasar";
 import * as CF from "src/utils/calculation_functions";
 
@@ -189,9 +166,6 @@ const dense = ref(true);
 const plannedTime = ref("");
 const useCurrentTime = ref(false);
 
-// Add GPS2IP-related reactive variables
-const gps2ipHost = ref('192.168.50.140'); // Default value
-const gps2ipPort = ref(11123); // Default value
 
 function handleFileUpload() {
   if (!gpxFile.value) return;
@@ -283,43 +257,6 @@ function handleCurrentTimeToggle(value) {
   }
 }
 
-// Add function to handle GPS2IP settings update
-function handleGpsSettingsUpdate() {
-  // Validate IP address format
-  const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
-  if (!ipRegex.test(gps2ipHost.value)) {
-    $q.notify({
-      type: 'negative',
-      message: 'Invalid IP address format',
-      position: 'top',
-      timeout: 2000
-    });
-    return;
-  }
-
-  // Validate port number
-  if (gps2ipPort.value < 1 || gps2ipPort.value > 65535) {
-    $q.notify({
-      type: 'negative',
-      message: 'Port must be between 1 and 65535',
-      position: 'top',
-      timeout: 2000
-    });
-    return;
-  }
-
-  // Save to localStorage
-  localStorage.setItem('gps2ipHost', gps2ipHost.value);
-  localStorage.setItem('gps2ipPort', gps2ipPort.value);
-
-  $q.notify({
-    type: 'positive',
-    message: 'GPS2IP settings updated successfully',
-    position: 'top',
-    timeout: 2000
-  });
-}
-
 onMounted(() => {
   const savedFileName = localStorage.getItem("currentGPXFileName");
   if (savedFileName) {
@@ -349,15 +286,6 @@ onMounted(() => {
         .map((v) => String(v).padStart(2, "0"))
         .join(":");
     }
-  }
-  // Load saved GPS2IP settings
-  const savedGps2ipHost = localStorage.getItem("gps2ipHost");
-  if (savedGps2ipHost) {
-    gps2ipHost.value = savedGps2ipHost;
-  }
-  const savedGps2ipPort = localStorage.getItem("gps2ipPort");
-  if (savedGps2ipPort) {
-    gps2ipPort.value = Number(savedGps2ipPort);
   }
 });
 </script>

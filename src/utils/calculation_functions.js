@@ -25,7 +25,6 @@ export async function get_route_coordinates(index = null) {
     });
 
     let parsedResult = parser.parse(data);
-    console.log("Parsed result:", parsedResult);
 
     let route = [];
     let prev_waypoint = null;

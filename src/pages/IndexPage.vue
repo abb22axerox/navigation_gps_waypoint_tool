@@ -466,23 +466,49 @@ onMounted(async () => {
   }
 });
 
-// Helper function to start navigation.
+// Update the startNavigation function
 async function startNavigation() {
-  const plannedSpeed = localStorage.getItem("plannedSpeed");
-  if (!plannedSpeed) {
+  // First check GPS availability
+  try {
+    const initialPos = await CF.get_current_location();
+    if (!initialPos) {
+      $q.dialog({
+        title: "Error",
+        message: "No GPS data available. Please check your GPS2IP connection.",
+        persistent: true,
+        ok: { label: "OK", flat: true }
+      });
+      isNavigating.value = false;
+      localStorage.setItem("isNavigating", false);
+      return;
+    }
+  } catch (err) {
     $q.dialog({
       title: "Error",
-      message:
-        "Please set planned speed in settings before starting navigation.",
+      message: "Could not get GPS position. Please check your GPS2IP connection.",
       persistent: true,
-      ok: { label: "OK", flat: true },
+      ok: { label: "OK", flat: true }
     });
     isNavigating.value = false;
     localStorage.setItem("isNavigating", false);
     return;
   }
 
-  const initialPos = await CF.get_current_location(); // Add await here
+  // Then check planned speed
+  const plannedSpeed = localStorage.getItem("plannedSpeed");
+  if (!plannedSpeed) {
+    $q.dialog({
+      title: "Error",
+      message: "Please set planned speed in settings before starting navigation.",
+      persistent: true,
+      ok: { label: "OK", flat: true }
+    });
+    isNavigating.value = false;
+    localStorage.setItem("isNavigating", false);
+    return;
+  }
+
+  // Continue with remaining checks and navigation setup
   currentBoatPos.value = initialPos;
   prevPos = initialPos;
   prevTime = CF.convert_unit("to-seconds", CF.get_time());
@@ -496,10 +522,9 @@ async function startNavigation() {
     if (!savedTime) {
       $q.dialog({
         title: "Error",
-        message:
-          "Please set planned time in settings before starting navigation.",
+        message: "Please set planned time in settings before starting navigation.",
         persistent: true,
-        ok: { label: "OK", flat: true },
+        ok: { label: "OK", flat: true }
       });
       isNavigating.value = false;
       localStorage.setItem("isNavigating", false);
