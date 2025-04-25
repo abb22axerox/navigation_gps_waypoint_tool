@@ -340,6 +340,7 @@ async function initializeNavigation() {
     navigationInterval = setInterval(async () => {
       try {
         const newPos = await CF.get_current_location();
+        console.log('New GPS position:', newPos); // Add this line
         if (!newPos) return;
 
         const bearing = currentBoatPos.value
