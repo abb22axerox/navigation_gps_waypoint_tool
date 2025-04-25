@@ -21,10 +21,11 @@ class GpsListener extends EventEmitter {
       this.socket = new WebSocket('ws://localhost:3001')
 
       this.socket.onopen = () => {
-        console.log('🌐 Connected to GPS bridge')
-        this.isConnected = true
-        this.reconnectAttempts = 0
-        this.startDataCheck()
+        console.log('🌐 Connected to GPS bridge');
+        this.isConnected = true;
+        this.reconnectAttempts = 0;
+        this.startDataCheck();
+        this.emit('connected'); // <-- new event emitted on successful connection
       }
 
       this.socket.onmessage = (event) => {

@@ -127,52 +127,6 @@ const plannedSpeed = ref(0);
 const gpsConnected = ref(false);
 const gpsError = ref(null);
 
-// Computed properties for route details
-const totalDistance = computed(() => {
-  if (!waypoints.value.length) return "0.000";
-  const coordinates = waypoints.value.map((wp) => wp[0]);
-  return CF.get_total_route_distance(coordinates).toFixed(3);
-});
-
-const startTime = computed(() => {
-  if (!waypoints.value.length) return "-";
-  return formatTimeArray(waypoints.value[0][1]);
-});
-
-const endTime = computed(() => {
-  if (!waypoints.value.length) return "-";
-  return formatTimeArray(waypoints.value[waypoints.value.length - 1][1]);
-});
-
-// Watch for planned speed updates
-watch(
-  () => localStorage.getItem("plannedSpeed"),
-  (newValue) => {
-    plannedSpeed.value = newValue ? Number(newValue) : 0;
-  },
-  { immediate: true }
-);
-
-// Watch for navigation state changes
-watch(
-  () => localStorage.getItem("isNavigating"),
-  (newValue) => {
-    isNavigating.value = newValue === "true";
-  },
-  { immediate: true }
-);
-
-// Watch for ETA updates
-watch(
-  () => localStorage.getItem("waypointsETA"),
-  (newValue) => {
-    if (newValue) {
-      waypoints.value = JSON.parse(newValue);
-    }
-  },
-  { immediate: true }
-);
-
 function formatTimeArray(timeArray) {
   if (!Array.isArray(timeArray)) return timeArray;
   const [hours, minutes, seconds] = timeArray;
@@ -181,15 +135,20 @@ function formatTimeArray(timeArray) {
 
 // Setup real-time GPS connection monitoring
 function setupGpsListener() {
+  gpsListener.on('connected', () => {
+    gpsConnected.value = true;
+    gpsError.value = null;
+  });
+  
   gpsListener.on('location', () => {
     gpsConnected.value = true;
     gpsError.value = null;
   });
-
+  
   gpsListener.on('error', (error) => {
     gpsConnected.value = false;
-    gpsError.value = error.message === 'GPS data stream stopped' 
-      ? 'No GPS updates received' 
+    gpsError.value = error.message === 'GPS data stream stopped'
+      ? 'No GPS updates received'
       : error.message;
   });
 
@@ -199,7 +158,6 @@ function setupGpsListener() {
   });
 }
 
-// Initial GPS check
 async function checkGPS() {
   try {
     const loc = await CF.get_current_location();
@@ -209,15 +167,14 @@ async function checkGPS() {
   }
 }
 
-// Lifecycle hooks
 onMounted(() => {
   setupGpsListener();
   checkGPS();
 });
 
-// Clean up listeners when component unmounts
 onBeforeUnmount(() => {
-  gpsListener.stop(); // This will clear the interval
+  gpsListener.stop();
+  gpsListener.removeAllListeners('connected');
   gpsListener.removeAllListeners('location');
   gpsListener.removeAllListeners('error');
   gpsListener.removeAllListeners('close');
