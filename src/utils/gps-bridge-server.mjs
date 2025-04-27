@@ -36,8 +36,7 @@ function connectToGps2ip() {
     gpsClient.destroy();
     gpsClient = null;
   }
-
-  console.log(`Attempting to connect to GPS2IP at ${config.gps2ipHost}:${config.gps2ipPort}`)
+  console.log(`👉 Attempting GPS2IP connection to ${config.gps2ipHost}:${config.gps2ipPort}`)
   
   gpsClient = new net.Socket()
   
@@ -86,7 +85,6 @@ function connectToGps2ip() {
 // Create WebSocket Server
 const wss = new WebSocketServer({ port: WS_PORT }, () => {
   console.log(`🌐 WebSocket server running on ws://localhost:${WS_PORT}`)
-  console.log(`👉 Attempting GPS2IP connection to ${config.gps2ipHost}:${config.gps2ipPort}`)
   connectToGps2ip()
 })
 

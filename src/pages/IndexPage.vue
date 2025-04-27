@@ -185,6 +185,7 @@
 </template>
 
 <script setup>
+import { gpsListener } from "src/boot/gps-listener";
 import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { useQuasar } from "quasar";
 import * as CF from "src/utils/calculation_functions";
@@ -360,7 +361,34 @@ function parseTimeString(timeStr) {
   return [hours, minutes, seconds, 0];
 }
 
+function handleGpsDisconnect() {
+  if (isNavigating.value) {
+    $q.notify({
+      type: "negative",
+      message: "Navigation stopped: GPS2IP connection lost",
+      position: "top",
+      timeout: 3000,
+    });
+    // Stop navigation
+    clearInterval(navigationInterval);
+    navigationInterval = null;
+    currentBoatPos.value = null;
+    prevPos = null;
+    prevTime = null;
+    currentSpeed.value = 0;
+    localStorage.setItem("isNavigating", false);
+    isNavigating.value = false;
+  }
+}
+
 onMounted(async () => {
+  // Listen for disconnect or error events from gpsListener.
+  gpsListener.on('disconnected', handleGpsDisconnect);
+  gpsListener.on('error', (err) => {
+    console.error("GPS error from listener:", err);
+    handleGpsDisconnect();
+  });
+  
   currentGPXFile.value = (localStorage.getItem("currentGPXFileName") || "").replace(".gpx", "");
   const coordinates = await CF.get_route_coordinates();
   if (coordinates.length) {
@@ -400,18 +428,33 @@ onMounted(async () => {
 });
 
 async function startNavigation() {
+  console.log('GPS2IP connected:', gpsListener.isConnected);
+  if (!gpsListener.isConnected) {
+    $q.dialog({
+      title: "Error",
+      message: "GPS2IP is not connected. Please check your connection.",
+      persistent: true,
+      ok: { label: "OK", flat: true },
+    });
+    isNavigating.value = false;
+    localStorage.setItem("isNavigating", false);
+    return false;
+  }
+  
+  // Then check if a valid initial position is available
+  let initialPos;
   try {
-    const initialPos = await CF.get_current_location();
+    initialPos = await CF.get_current_location();
     if (!initialPos) {
       $q.dialog({
         title: "Error",
-        message: "No GPS data available. Please check your GPS2IP connection.",
+        message: "No GPS data available.",
         persistent: true,
         ok: { label: "OK", flat: true },
       });
       isNavigating.value = false;
       localStorage.setItem("isNavigating", false);
-      return;
+      return false;
     }
   } catch (err) {
     $q.dialog({
@@ -422,7 +465,7 @@ async function startNavigation() {
     });
     isNavigating.value = false;
     localStorage.setItem("isNavigating", false);
-    return;
+    return false;
   }
   const plannedSpeed = localStorage.getItem("plannedSpeed");
   if (!plannedSpeed) {
@@ -434,9 +477,9 @@ async function startNavigation() {
     });
     isNavigating.value = false;
     localStorage.setItem("isNavigating", false);
-    return;
+    return false;
   }
-  currentBoatPos.value = await CF.get_current_location();
+  currentBoatPos.value = initialPos;
   prevPos = currentBoatPos.value;
   prevTime = CF.convert_unit("to-seconds", CF.get_time());
   const useCurrentTime = localStorage.getItem("useCurrentTime") === "true";
@@ -453,26 +496,29 @@ async function startNavigation() {
       });
       isNavigating.value = false;
       localStorage.setItem("isNavigating", false);
-      return;
+      return false;
     }
     plannedStartTime.value = parseTimeString(savedTime);
   }
   etaList.value = await CF.get_eta_for_waypoints(plannedStartTime.value, Number(plannedSpeed));
   localStorage.setItem("waypointsETA", JSON.stringify(etaList.value));
   initializeNavigation();
+  return true;
 }
 
-function toggleNavigation() {
+async function toggleNavigation() {
   isNavigating.value = !isNavigating.value;
   localStorage.setItem("isNavigating", isNavigating.value);
   if (isNavigating.value) {
-    startNavigation();
-    $q.notify({
-      type: "positive",
-      message: "Navigation started",
-      position: "top",
-      timeout: 2000,
-    });
+    const success = await startNavigation();
+    if (success) {
+      $q.notify({
+        type: "positive",
+        message: "Navigation started",
+        position: "top",
+        timeout: 2000,
+      });
+    }
   } else {
     clearInterval(navigationInterval);
     navigationInterval = null;
@@ -491,10 +537,9 @@ function toggleNavigation() {
 }
 
 onBeforeUnmount(() => {
-  if (navigationInterval) clearInterval(navigationInterval);
-  if (chrome.runtime?.onMessage) {
-    chrome.runtime.onMessage.removeListener();
-  }
+  gpsListener.off('disconnected', handleGpsDisconnect);
+  // It’s a good idea to also remove the error listener.
+  gpsListener.off('error', handleGpsDisconnect);
 });
 </script>
 
