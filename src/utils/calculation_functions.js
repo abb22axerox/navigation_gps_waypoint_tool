@@ -159,43 +159,42 @@ export async function get_eta_for_waypoints(
   }
 }
 
-export async function get_estimated_delay(
-  start_time,
-  eta_list,
-  waypoint_index,
-  current_speed
-) {
+export async function get_estimated_delay(eta_list, waypoint_index, current_speed) {
   let route = await get_route_coordinates();
-  // Instead of getting speed here, we use the passed current_speed.
-  let current_location = [59.64795, 18.81407]; // Simulated current position
+  let current_location = get_current_location();
 
-  let planned_start_time = convert_unit("to-seconds", start_time);
+  // Remove unused planned_start_time
   let planned_eta = convert_unit("to-seconds", eta_list[waypoint_index][1]);
   let remaining_distance = get_2point_route_distance(
     current_location,
     route[waypoint_index]
   );
-  let travel_time_seconds = (remaining_distance / current_speed) * 3600;
-  let current_eta = planned_start_time + travel_time_seconds;
 
-  // Calculate delay with tolerance for floating-point precision
-  let raw_delay = current_eta - planned_eta;
-  raw_delay = Math.abs(raw_delay) < 1e-6 ? 0 : raw_delay;
-
-  // True if late, False if early
+  // Calculate the current time difference from planned ETA
+  const current_time = convert_unit("to-seconds", get_time());
+  const raw_delay = current_time - planned_eta;  // raw delay (in seconds; positive if late)
+  const delay = Math.abs(raw_delay);
+  const formatted_delay = convert_unit("format-seconds", delay);
   let is_delay_positive = raw_delay > 0;
-  let delay = Math.abs(raw_delay);
-  let formatted_delay = convert_unit("format-seconds", delay);
+  let throttle_alert;
+  if (current_speed === 0) {
+    throttle_alert = is_delay_positive ? 1 : -1;
+  } else {
+    // Scale the throttle value more gradually
+    // Use a smaller threshold for fine control
+    const fine_threshold = 10; // 10 seconds for fine control
+    const coarse_threshold = 300; // 5 minutes for max throttle
 
-  // Calculate throttle_alert based on a maximum delay threshold.
-  let max_delay_threshold = 300; // 5 minutes threshold (in seconds)
-  let throttle_alert =
-    (Math.min(delay, max_delay_threshold) / max_delay_threshold) *
-    (is_delay_positive ? 1 : -1);
-
-  return [
-    [remaining_distance, formatted_delay, is_delay_positive, throttle_alert],
-  ];
+    if (delay <= fine_threshold) {
+      // Fine control for small delays (0-10 seconds)
+      throttle_alert = (delay / fine_threshold) * 0.5 * (is_delay_positive ? 1 : -1);
+    } else {
+      // Coarse control for larger delays
+      throttle_alert = (Math.min(delay, coarse_threshold) / coarse_threshold) * (is_delay_positive ? 1 : -1);
+    }
+  }
+  
+  return [remaining_distance, delay, formatted_delay, is_delay_positive, throttle_alert];
 }
 
 export async function get_current_location() {

@@ -127,6 +127,55 @@ const plannedSpeed = ref(0);
 const gpsConnected = ref(false);
 const gpsError = ref(null);
 
+// Add these new reactive references
+const totalDistance = ref(0);
+const startTime = ref("--:--:--");
+const endTime = ref("--:--:--");
+
+// Add this new function to calculate route details
+async function calculateRouteDetails() {
+  try {
+    // Get route coordinates
+    const coordinates = await CF.get_route_coordinates();
+    if (coordinates && coordinates.length) {
+      // Calculate total distance
+      totalDistance.value = CF.get_total_route_distance(coordinates).toFixed(2);
+
+      // Get planned speed and start time
+      const plannedSpeedValue = localStorage.getItem("plannedSpeed");
+      plannedSpeed.value = plannedSpeedValue || 0; // Update planned speed display
+      const savedTime = localStorage.getItem("plannedTime");
+      const useCurrentTime = localStorage.getItem("useCurrentTime") === "true";
+
+      // Set start time
+      if (useCurrentTime) {
+        startTime.value = formatTimeArray(CF.get_time());
+      } else if (savedTime) {
+        startTime.value = savedTime;
+      }
+
+      // Calculate ETAs and update waypoints
+      if (plannedSpeedValue && coordinates.length) {
+        const eta = await CF.get_eta_for_waypoints(
+          useCurrentTime ? CF.get_time() : parseTimeString(savedTime),
+          Number(plannedSpeedValue)
+        );
+        if (eta.length) {
+          // Update end time
+          endTime.value = formatTimeArray(eta[eta.length - 1][1]);
+          
+          // Update waypoints table data
+          waypoints.value = coordinates.map((coord, index) => {
+            return [coord, eta[index][1]];
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error calculating route details:", error);
+  }
+}
+
 function formatTimeArray(timeArray) {
   if (!Array.isArray(timeArray)) return timeArray;
   const [hours, minutes, seconds] = timeArray;
@@ -167,9 +216,10 @@ async function checkGPS() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   setupGpsListener();
   checkGPS();
+  await calculateRouteDetails(); // Add this line
 });
 
 onBeforeUnmount(() => {

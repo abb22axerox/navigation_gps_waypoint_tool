@@ -1,6 +1,6 @@
 <template>
-  <q-page class="">
-    <div class="row justify-between q-pa-md bordered-container">
+  <q-page>
+    <div class="row justify-between q-pa-md">
       <!-- Map Section -->
       <div class="map-container" v-if="routeCoordinates.length">
         <l-map ref="mapRef" v-model:zoom="zoom" :center="center">
@@ -45,12 +45,23 @@
         </l-map>
       </div>
 
-      <!-- Dashboard & Throttle Slider Section -->
-      <div class="row q-pl-md bordered-container flex-wrapper">
-        <!-- Dashboard / Parameters Section -->
-        <div class="col-xs-12 col-md-6 dashboard-container row">
+      <!-- Dashboard Section -->
+      <div class="col-6 q-pl-md">
+        <div class="column full-width q-gutter-y-md">
           <div class="text-h6">
             {{ currentGPXFile || "No route loaded" }}
+          </div>
+
+          <!-- Throttle Slider -->
+          <div class="q-px-md q-mb-md">
+            <CustomSlider
+              v-model="throttleValue"
+              :min="-1"
+              :max="1"
+              :step="0.01"
+              readonly
+              :show-label="true"
+            />
           </div>
 
           <div class="row q-pt-md q-col-gutter-md">
@@ -71,27 +82,15 @@
             <div class="col-6">
               <q-card class="dashboard-card">
                 <q-card-section>
-                  <div class="text-h4 text-weight-bold text-primary">
-                    <div :class="isNavigating && estimatedDelay?.[2] ? 'text-negative' : 'text-positive'">
+                  <div class="text-h4 text-weight-bold" :class="delayColor">
+                    {{ isNavigating ? (estimatedDelay ? formatDelay(estimatedDelay[2]) : "--:--") : "0:00" }}
+                    <span class="text-caption">
                       {{
                         isNavigating
-                          ? estimatedDelay
-                            ? formatDelay(estimatedDelay[1])
-                            : "--:--"
-                          : "0:00"
+                          ? (estimatedDelay?.length ? (estimatedDelay[3] ? "Late" : "Early") : "On Time")
+                          : "--"
                       }}
-                      <span class="text-caption">
-                        {{
-                          isNavigating
-                            ? estimatedDelay?.length
-                              ? estimatedDelay[2]
-                                ? "Late"
-                                : "Early"
-                              : "On Time"
-                            : "--"
-                        }}
-                      </span>
-                    </div>
+                    </span>
                   </div>
                   <div class="text-subtitle2 text-grey-7">Delay</div>
                 </q-card-section>
@@ -154,39 +153,15 @@
             @click="toggleNavigation"
           />
         </div>
-
-        <!-- Throttle Slider Section -->
-        <div class="throttle-container q-pr-md" v-if="estimatedDelay?.length">
-          <q-slider
-            v-model="estimatedDelay[3]"
-            :min="-1"
-            :max="1"
-            :step="0.01"
-            readonly
-            vertical
-            reverse
-            color="blue-10"
-            track-size="100px"
-            class="throttle-slider"
-          >
-            <template v-slot:thumb="props"></template>
-          </q-slider>
-          <q-icon
-            v-if="estimatedDelay[3] > 1"
-            name="warning"
-            color="negative"
-            size="2em"
-            class="warning-icon"
-          />
-        </div>
       </div>
     </div>
   </q-page>
 </template>
 
 <script setup>
+import CustomSlider from 'src/components/CustomSlider.vue';
 import { gpsListener } from "src/boot/gps-listener";
-import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
+import { ref, onMounted, onBeforeUnmount, nextTick, watch, computed } from "vue";
 import { useQuasar } from "quasar";
 import * as CF from "src/utils/calculation_functions";
 import { LMap, LTileLayer, LPolyline, LMarker } from "@vue-leaflet/vue-leaflet";
@@ -289,6 +264,26 @@ const waypointSwitching = ref(false);
 const plannedStartTime = ref(null);
 const etaList = ref([]);
 const estimatedDelay = ref(null);
+const throttleValue = ref(0);
+
+// Assuming estimatedDelay is set by get_estimated_delay and has at least 5 elements:
+const delayColor = computed(() => {
+  if (!estimatedDelay.value || estimatedDelay.value.length < 5) return '';
+  let seconds = estimatedDelay.value[1]; // raw delay seconds
+  // Use absolute seconds regardless of early or late.
+  if (seconds <= 3) return 'text-positive'; // green: ~3 seconds
+  else if (seconds <= 5) return 'text-warning'; // yellow: a little more
+  else if (seconds <= 10) return 'text-orange'; // orange: moderate delay
+  else return 'text-negative'; // red: over 10 seconds
+});
+
+// Update the estimatedDelay watcher to update throttle
+watch(() => estimatedDelay.value, (newDelay) => {
+  if (newDelay?.length) {
+    // Use index 4 (throttle_alert) instead of index 3
+    throttleValue.value = newDelay[4];
+  }
+});
 
 let navigationInterval = null;
 let prevPos = null;
@@ -328,12 +323,12 @@ async function initializeNavigation() {
         }
         if (etaList.value.length && plannedStartTime.value) {
           CF.get_estimated_delay(
-            plannedStartTime.value,
             etaList.value,
             passedWaypointIndex.value,
             currentSpeed.value
           ).then((result) => {
-            estimatedDelay.value = result[0];
+            // Assign the full array, not just its first element
+            estimatedDelay.value = result;
           });
         }
       } catch (error) {
@@ -379,6 +374,27 @@ function handleGpsDisconnect() {
     localStorage.setItem("isNavigating", false);
     isNavigating.value = false;
   }
+}
+
+async function verifyGpsConnection() {
+  if (!gpsListener.isConnected) {
+    // Try to restart the connection
+    gpsListener.stop();
+    gpsListener.start();
+    
+    // Wait for connection to establish
+    await new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve(false), 3000);
+      
+      const onConnect = () => {
+        clearTimeout(timeout);
+        resolve(true);
+      };
+      
+      gpsListener.once('connected', onConnect);
+    });
+  }
+  return gpsListener.isConnected;
 }
 
 onMounted(async () => {
@@ -507,9 +523,32 @@ async function startNavigation() {
 }
 
 async function toggleNavigation() {
+  if (!isNavigating.value) {
+    // Verify GPS connection before starting
+    const isConnected = await verifyGpsConnection();
+    if (!isConnected) {
+      $q.dialog({
+        title: "Error",
+        message: "GPS2IP is not connected. Please check your connection.",
+        persistent: true,
+        ok: { label: "OK", flat: true },
+      });
+      return;
+    }
+  }
+
   isNavigating.value = !isNavigating.value;
   localStorage.setItem("isNavigating", isNavigating.value);
+  
   if (isNavigating.value) {
+    // Reset navigation state before starting
+    passedWaypointIndex.value = 0;
+    waypointSwitching.value = false;
+    estimatedDelay.value = null;
+    throttleValue.value = 0;
+    currentSpeed.value = 0;
+    currentBearing.value = 0;
+    
     const success = await startNavigation();
     if (success) {
       $q.notify({
@@ -520,13 +559,21 @@ async function toggleNavigation() {
       });
     }
   } else {
+    // Clean up navigation state
     clearInterval(navigationInterval);
     navigationInterval = null;
     currentBoatPos.value = null;
     prevPos = null;
     prevTime = null;
     currentSpeed.value = 0;
+    currentBearing.value = 0;
+    passedWaypointIndex.value = 0;
+    waypointSwitching.value = false;
+    estimatedDelay.value = null;
+    throttleValue.value = 0;
+    etaList.value = [];
     localStorage.removeItem("waypointsETA");
+    
     $q.notify({
       type: "warning",
       message: "Navigation stopped",
@@ -549,52 +596,21 @@ onBeforeUnmount(() => {
   height: 400px;
   z-index: 0;
 }
-.flex-wrapper {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  width: 50%;
-}
-.dashboard-container {
-  flex: 1;
-  margin-right: 1rem;
-}
-.throttle-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.throttle-slider {
-  width: 100px;
-  height: 300px;
-}
 .leaflet-pane {
   z-index: 0 !important;
 }
 .leaflet-control {
   z-index: 0 !important;
 }
-.dashboard-card {
-  box-shadow: none;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  transition: none;
-}
-.text-h3 {
-  line-height: 1.2;
-}
-.text-h5 {
-  line-height: 1.2;
-}
-.text-caption {
-  font-size: 0.8em;
-  opacity: 0.7;
-}
-.warning-icon {
-  margin-top: 1rem;
-}
 .leaflet-div-icon {
   background: transparent;
   border: none;
 }
+.dashboard-card {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+}
+.text-orange {
+    color: orange;
+  }
 </style>
