@@ -161,7 +161,7 @@ export async function get_eta_for_waypoints(
 
 export async function get_estimated_delay(eta_list, waypoint_index, current_speed) {
   let route = await get_route_coordinates();
-  let current_location = get_current_location();
+  let current_location = await get_current_location();
 
   // Remove unused planned_start_time
   let planned_eta = convert_unit("to-seconds", eta_list[waypoint_index][1]);
@@ -260,9 +260,9 @@ export function calculateRouteMidpoint(coordinates) {
   return [sumLat / coordinates.length, sumLng / coordinates.length];
 }
 
-export function calculate_dot_product(passed_waypoint, next_waypoint) {
+export async function calculate_dot_product(passed_waypoint, next_waypoint) {
   // Get the current GPS location
-  const current = get_current_location(); // returns [lat, lon]
+  const current = await get_current_location(); // returns [lat, lon]
 
   // Create a vector representing the route's direction from the passed waypoint to the next waypoint.
   const direction = [

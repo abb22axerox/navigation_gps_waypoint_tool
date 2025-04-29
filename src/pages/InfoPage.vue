@@ -122,7 +122,7 @@ import * as CF from "src/utils/calculation_functions";
 import { gpsListener } from "src/boot/gps-listener";
 
 const waypoints = ref([]);
-const isNavigating = ref(false);
+const isNavigating = ref(localStorage.getItem("isNavigating") === "true");
 const plannedSpeed = ref(0);
 const gpsConnected = ref(false);
 const gpsError = ref(null);
@@ -135,36 +135,37 @@ const endTime = ref("--:--:--");
 // Add this new function to calculate route details
 async function calculateRouteDetails() {
   try {
-    // Get route coordinates
     const coordinates = await CF.get_route_coordinates();
     if (coordinates && coordinates.length) {
-      // Calculate total distance
       totalDistance.value = CF.get_total_route_distance(coordinates).toFixed(2);
-
-      // Get planned speed and start time
+      
       const plannedSpeedValue = localStorage.getItem("plannedSpeed");
-      plannedSpeed.value = plannedSpeedValue || 0; // Update planned speed display
+      plannedSpeed.value = plannedSpeedValue || 0;
+
+      // First get the saved start time
       const savedTime = localStorage.getItem("plannedTime");
       const useCurrentTime = localStorage.getItem("useCurrentTime") === "true";
-
-      // Set start time
+      
+      // Set start time first
       if (useCurrentTime) {
         startTime.value = formatTimeArray(CF.get_time());
       } else if (savedTime) {
         startTime.value = savedTime;
       }
 
-      // Calculate ETAs and update waypoints
-      if (plannedSpeedValue && coordinates.length) {
-        const eta = await CF.get_eta_for_waypoints(
-          useCurrentTime ? CF.get_time() : parseTimeString(savedTime),
-          Number(plannedSpeedValue)
-        );
+      // Then handle ETAs
+      const savedETA = localStorage.getItem("waypointsETA");
+      if (savedETA) {
+        const eta = JSON.parse(savedETA);
+        endTime.value = formatTimeArray(eta[eta.length - 1][1]);
+        waypoints.value = coordinates.map((coord, index) => {
+          return [coord, eta[index][1]];
+        });
+      } else if (plannedSpeedValue && coordinates.length) {
+        const startTimeArray = useCurrentTime ? CF.get_time() : parseTimeString(savedTime);
+        const eta = await CF.get_eta_for_waypoints(startTimeArray, Number(plannedSpeedValue));
         if (eta.length) {
-          // Update end time
           endTime.value = formatTimeArray(eta[eta.length - 1][1]);
-          
-          // Update waypoints table data
           waypoints.value = coordinates.map((coord, index) => {
             return [coord, eta[index][1]];
           });
@@ -180,6 +181,13 @@ function formatTimeArray(timeArray) {
   if (!Array.isArray(timeArray)) return timeArray;
   const [hours, minutes, seconds] = timeArray;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+// Add this helper function if not already present
+function parseTimeString(timeStr) {
+  if (!timeStr) return null;
+  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
+  return [hours, minutes, seconds, 0];
 }
 
 // Setup real-time GPS connection monitoring
@@ -216,10 +224,18 @@ async function checkGPS() {
   }
 }
 
+watch(() => localStorage.getItem("isNavigating"), (newValue) => {
+  isNavigating.value = newValue === "true";
+});
+
 onMounted(async () => {
+  // Get initial navigation status
+  isNavigating.value = localStorage.getItem("isNavigating") === "true";
+  
+  // ...existing setup code...
   setupGpsListener();
   checkGPS();
-  await calculateRouteDetails(); // Add this line
+  await calculateRouteDetails();
 });
 
 onBeforeUnmount(() => {

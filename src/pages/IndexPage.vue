@@ -117,8 +117,8 @@
                     <div class="col">
                       <div class="text-h5 text-weight-medium text-center">
                         {{
-                          isNavigating && estimatedDelay
-                            ? (estimatedDelay[0]).toFixed(2)
+                          isNavigating && estimatedDelay && typeof estimatedDelay[0] === 'number'
+                            ? estimatedDelay[0].toFixed(2)
                             : "0.00"
                         }}
                         <span class="text-caption">NM</span>
@@ -295,7 +295,6 @@ async function initializeNavigation() {
     navigationInterval = setInterval(async () => {
       try {
         const newPos = await CF.get_current_location();
-        console.log('New GPS position:', newPos);
         if (!newPos) return;
         const bearing = currentBoatPos.value ? CF.get_bearing(currentBoatPos.value, newPos) : 0;
         currentBearing.value = bearing;
@@ -327,7 +326,6 @@ async function initializeNavigation() {
             passedWaypointIndex.value,
             currentSpeed.value
           ).then((result) => {
-            // Assign the full array, not just its first element
             estimatedDelay.value = result;
           });
         }
@@ -517,7 +515,9 @@ async function startNavigation() {
     plannedStartTime.value = parseTimeString(savedTime);
   }
   etaList.value = await CF.get_eta_for_waypoints(plannedStartTime.value, Number(plannedSpeed));
+  // Save ETAs to localStorage when navigation starts
   localStorage.setItem("waypointsETA", JSON.stringify(etaList.value));
+  
   initializeNavigation();
   return true;
 }
@@ -572,6 +572,7 @@ async function toggleNavigation() {
     estimatedDelay.value = null;
     throttleValue.value = 0;
     etaList.value = [];
+    // Clear ETAs from localStorage when navigation stops
     localStorage.removeItem("waypointsETA");
     
     $q.notify({
