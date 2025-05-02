@@ -211,6 +211,12 @@ export async function get_current_location() {
   })
 }
 
+export function updateSpeed(prevPos, prevTime, newPos, currentTime) {
+  const distance = get_2point_route_distance(prevPos, newPos);
+  const timeDiff = (currentTime - prevTime) / 3600;
+  return timeDiff > 0 ? distance / timeDiff : 0;
+}
+
 export function formatCoordinates(coords) {
   if (!Array.isArray(coords)) return coords;
 

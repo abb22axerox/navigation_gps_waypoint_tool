@@ -1,9 +1,16 @@
 <template>
-  <div class="custom-slider" @click="onClick($event)">
-    <div class="custom-slider-track"></div>
-    <div class="custom-slider-thumb" :style="{ left: thumbPosition }"></div>
-    <div class="custom-slider-label" v-if="showLabel" :style="{ left: thumbLabelPosition }">
-      {{ modelValue.toFixed(2) }}
+  <div class="vertical-slider-container">
+    <div class="slider-label top-label">Early</div>
+    <div class="custom-slider vertical" @click="onClick($event)">
+      <div class="custom-slider-track"></div>
+      <div class="custom-slider-thumb" :style="{ bottom: thumbPosition }"></div> 
+    </div>
+    <div class="slider-label bottom-label">Late</div>
+    
+    <!-- Throttle indicators -->
+    <div class="throttle-indicators">
+      <div class="throttle-indicator up">Throttle Up</div>
+      <div class="throttle-indicator down">Throttle Down</div>
     </div>
   </div>
 </template>
@@ -41,14 +48,13 @@ const emit = defineEmits(['update:modelValue']);
 
 const range = computed(() => props.max - props.min);
 const percent = computed(() => ((props.modelValue - props.min) / range.value) * 100);
-const thumbPosition = computed(() => percent.value + '%');
-const thumbLabelPosition = computed(() => `calc(${percent.value}% - 20px)`);
+const thumbPosition = computed(() => `${percent.value}%`);
 
 function onClick(e) {
   if (props.readonly) return;
   const sliderRect = e.currentTarget.getBoundingClientRect();
-  const clickPos = e.clientX - sliderRect.left;
-  let newPercent = (clickPos / sliderRect.width) * 100;
+  const clickPos = e.clientY - sliderRect.top;
+  let newPercent = (1 - (clickPos / sliderRect.height)) * 100;
   if (newPercent < 0) newPercent = 0;
   if (newPercent > 100) newPercent = 100;
   let newVal = props.min + (newPercent / 100) * range.value;
@@ -58,67 +64,108 @@ function onClick(e) {
 </script>
 
 <style scoped>
-.custom-slider {
+.vertical-slider-container {
   position: relative;
-  height: 40px;
-  cursor: pointer;
-  user-select: none;
+  height: 400px;
+  width: 40px;
+}
+
+/* Using flexbox in the slider container to center children horizontally */
+.custom-slider.vertical {
+  width: 30px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
 .custom-slider-track {
   width: 100%;
-  height: 30px;
+  height: 100%;
   background: linear-gradient(
-    to right,
-    rgb(255, 0, 0) 0%,      /* Red */
-    rgb(255, 165, 0) 25%,   /* Yellow/Orange */
-    rgb(76, 175, 80) 45%,   /* Green */
-    rgb(76, 175, 80) 55%,   /* Green */
-    rgb(255, 165, 0) 75%,   /* Yellow/Orange */
-    rgb(255, 0, 0) 100%     /* Red */
+    to bottom,
+    rgb(255, 0, 0) 0%,      /* Red (Late) */
+    rgb(255, 165, 0) 25%,   /* Orange */
+    rgb(76, 175, 80) 45%,   /* Green (On Time) */
+    rgb(76, 175, 80) 55%,   /* Green (On Time) */
+    rgb(255, 165, 0) 75%,   /* Orange */
+    rgb(255, 0, 0) 100%     /* Red (Early) */
   );
   border-radius: 4px;
   position: absolute;
-  top: 16px;
 }
 
 .custom-slider-thumb {
   position: absolute;
-  top: 4px;
-  width: 8px;
-  height: 32px;
-  background: white;
-  border: none;
-  border-radius: 2px;
-  transform: translateX(-50%);
-  pointer-events: none;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  transition: all 0.2s ease;
-}
-
-.custom-slider-thumb::before {
-  content: '';
-  position: absolute;
-  top: 50%;
+  /* Centered horizontally via flexbox of parent */
   left: 50%;
-  transform: translate(-50%, -50%);
-  width: 2px;
-  height: 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 1px;
+  transform: translate(-50%, 50%);
+  width: 60px;
+  height: 20px;
+  background: black;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border: 2px solid #ffffff;
+  pointer-events: none; /* Non-interactive indicator */
+  transition: bottom 0.3s ease-out;
 }
 
-.custom-slider-label {
+.custom-slider-thumb:hover {
+  cursor: default;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3); }
+  50% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
+  100% { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3); }
+}
+
+.custom-slider-thumb {
+  animation: pulse 2s infinite;
+}
+
+/* Position labels as before */
+.slider-label {
   position: absolute;
-  top: -24px;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 2px 6px;
-  border-radius: 3px;
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.5px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.top-label {
+  top: -20px;
+}
+
+.bottom-label {
+  bottom: -20px;
+}
+
+/* Reposition throttle indicators so they’re visible */
+.throttle-indicators {
+  position: absolute;
+  left: 100%; /* Place to the right of the slider container */
+  top: 0;
+  margin-left: 8px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.throttle-indicator {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  padding: 10px 0;
+}
+
+.throttle-indicator.up {
+  color: rgb(76, 175, 80);
+}
+
+.throttle-indicator.down {
+  color: rgb(255, 0, 0);
 }
 </style>

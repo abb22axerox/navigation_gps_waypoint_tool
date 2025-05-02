@@ -25,7 +25,7 @@
               class="q-mb-md"
               filled
               v-model.number="plannedSpeed"
-              label="Planned Speed"
+              label="Planned Speed (Knots)"
               stack-label
               :dense="dense"
               type="number"
@@ -41,7 +41,7 @@
               class="q-mb-sm"
               filled
               v-model="plannedTime"
-              label="Start Time"
+              label="Start Time (Hours:Minutes:Seconds)"
               mask="fulltime"
               :rules="['fulltime']"
               :readonly="useCurrentTime"
@@ -82,6 +82,22 @@
               @update:model-value="handleCurrentTimeToggle"
               class="q-mb-md"
             />
+
+            <!-- Update Frequency Input -->
+            <q-input
+              class="q-mb-md"
+              filled
+              v-model.number="updateFrequencyHz"
+              label="Update Frequency (Hz)"
+              stack-label
+              :dense="dense"
+              type="number"
+              @update:model-value="handleUpdateFrequencyUpdate"
+            >
+              <template v-slot:append>
+                <q-icon name="update" />
+              </template>
+            </q-input>
           </q-card-section>
         </q-card>
       </div>
@@ -165,7 +181,7 @@ const plannedSpeed = ref(0);
 const dense = ref(true);
 const plannedTime = ref("");
 const useCurrentTime = ref(false);
-
+const updateFrequencyHz = ref(1); // Default 1 Hz update (i.e., 1 second period)
 
 function handleFileUpload() {
   if (!gpxFile.value) return;
@@ -257,6 +273,27 @@ function handleCurrentTimeToggle(value) {
   }
 }
 
+function handleUpdateFrequencyUpdate(value) {
+  if (value <= 0) {
+    $q.notify({
+      type: "negative",
+      message: "Update frequency must be greater than 0 Hz",
+      position: "top",
+      timeout: 2000,
+    });
+    return;
+  }
+  // Convert frequency in Hz to period in seconds
+  const period = 1 / value;
+  localStorage.setItem("updateFrequency", period.toString());
+  $q.notify({
+    type: "positive",
+    message: "Update frequency updated successfully",
+    position: "top",
+    timeout: 2000,
+  });
+}
+
 onMounted(() => {
   const savedFileName = localStorage.getItem("currentGPXFileName");
   if (savedFileName) {
@@ -285,6 +322,14 @@ onMounted(() => {
         .slice(0, 3)
         .map((v) => String(v).padStart(2, "0"))
         .join(":");
+    }
+  }
+  const savedUpdateFrequency = localStorage.getItem("updateFrequency");
+  if (savedUpdateFrequency) {
+    // stored value is period in seconds, so convert to Hz
+    const period = Number(savedUpdateFrequency);
+    if (period > 0) {
+      updateFrequencyHz.value = 1 / period;
     }
   }
 });

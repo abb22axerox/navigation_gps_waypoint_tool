@@ -45,15 +45,111 @@
         </l-map>
       </div>
 
-      <!-- Dashboard Section -->
+      <!-- Dashboard Section with Slider -->
       <div class="col-6 q-pl-md">
-        <div class="column full-width q-gutter-y-md">
-          <div class="text-h6">
-            {{ currentGPXFile || "No route loaded" }}
+        <div class="row items-start">
+          <!-- Main Dashboard Content -->
+          <div class="col-10">
+            <div class="column q-gutter-y-md">
+              <div class="text-h6">
+                {{ currentGPXFile || "No route loaded" }}
+              </div>
+
+              <!-- Cards Row -->
+              <div class="row q-col-gutter-md">
+                <!-- Current Speed Card -->
+                <div class="col-6">
+                  <q-card class="dashboard-card">
+                    <q-card-section>
+                      <div class="text-h4 text-weight-bold text-primary">
+                        {{ (isNavigating ? currentSpeed : 0)?.toFixed(1) || "0.0" }}
+                        <span class="text-caption">knots</span>
+                      </div>
+                      <div class="text-subtitle2 text-grey-7">Current Speed</div>
+                    </q-card-section>
+                  </q-card>
+                </div>
+
+                <!-- Delay Card -->
+                <div class="col-6">
+                  <q-card class="dashboard-card">
+                    <q-card-section>
+                      <div class="text-h4 text-weight-bold" :class="delayColor">
+                        {{ isNavigating ? (estimatedDelay ? formatDelay(estimatedDelay[2]) : "--:--") : "0:00" }}
+                        <span class="text-caption">
+                          {{
+                            isNavigating
+                              ? (estimatedDelay?.length ? (estimatedDelay[3] ? "Late" : "Early") : "On Time")
+                              : "--"
+                          }}
+                        </span>
+                      </div>
+                      <div class="text-subtitle2 text-grey-7">Delay</div>
+                    </q-card-section>
+                  </q-card>
+                </div>
+
+                <!-- Waypoint Info Card -->
+                <div class="col-12">
+                  <q-card class="dashboard-card">
+                    <q-card-section>
+                      <div class="row justify-between items-center">
+                        <div class="col">
+                          <div class="text-h5 text-weight-medium text-center">
+                            {{
+                              isNavigating
+                                ? `${passedWaypointIndex + 1} / ${routeCoordinates.length}`
+                                : "0 / 0"
+                            }}
+                          </div>
+                          <div class="text-subtitle2 text-grey-7 text-center">
+                            Next Waypoint
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="text-h5 text-weight-medium text-center">
+                            {{
+                              isNavigating && estimatedDelay && typeof estimatedDelay[0] === 'number'
+                                ? estimatedDelay[0].toFixed(2)
+                                : "0.00"
+                            }}
+                            <span class="text-caption">NM</span>
+                          </div>
+                          <div class="text-subtitle2 text-grey-7 text-center">
+                            Remaining Distance
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="text-h5 text-weight-medium text-center">
+                            {{
+                              isNavigating && etaList[passedWaypointIndex + 1]
+                                ? formatTime(etaList[passedWaypointIndex + 1][1])
+                                : "--:--:--"
+                            }}
+                          </div>
+                          <div class="text-subtitle2 text-grey-7 text-center">
+                            Must Arrive
+                          </div>
+                        </div>
+                      </div>
+                    </q-card-section>
+                  </q-card>
+                </div>
+              </div>
+
+              <!-- Navigation Button -->
+              <q-btn
+                class="full-width q-mt-md"
+                size="lg"
+                :color="isNavigating ? 'negative' : 'primary'"
+                :label="isNavigating ? 'Stop Navigation' : 'Start Navigation'"
+                @click="toggleNavigation"
+              />
+            </div>
           </div>
 
           <!-- Throttle Slider -->
-          <div class="q-px-md q-mb-md">
+          <div class="col-2 q-pt-md q-pl-md flex flex-center">
             <CustomSlider
               v-model="throttleValue"
               :min="-1"
@@ -61,97 +157,9 @@
               :step="0.01"
               readonly
               :show-label="true"
+              class="q-mt-md"
             />
           </div>
-
-          <div class="row q-pt-md q-col-gutter-md">
-            <!-- Current Speed Card -->
-            <div class="col-6">
-              <q-card class="dashboard-card">
-                <q-card-section>
-                  <div class="text-h4 text-weight-bold text-primary">
-                    {{ (isNavigating ? currentSpeed : 0)?.toFixed(1) || "0.0" }}
-                    <span class="text-caption">knots</span>
-                  </div>
-                  <div class="text-subtitle2 text-grey-7">Current Speed</div>
-                </q-card-section>
-              </q-card>
-            </div>
-
-            <!-- Delay Card -->
-            <div class="col-6">
-              <q-card class="dashboard-card">
-                <q-card-section>
-                  <div class="text-h4 text-weight-bold" :class="delayColor">
-                    {{ isNavigating ? (estimatedDelay ? formatDelay(estimatedDelay[2]) : "--:--") : "0:00" }}
-                    <span class="text-caption">
-                      {{
-                        isNavigating
-                          ? (estimatedDelay?.length ? (estimatedDelay[3] ? "Late" : "Early") : "On Time")
-                          : "--"
-                      }}
-                    </span>
-                  </div>
-                  <div class="text-subtitle2 text-grey-7">Delay</div>
-                </q-card-section>
-              </q-card>
-            </div>
-
-            <!-- Waypoint Info Card -->
-            <div class="col-12">
-              <q-card class="dashboard-card">
-                <q-card-section>
-                  <div class="row justify-between items-center">
-                    <div class="col">
-                      <div class="text-h5 text-weight-medium text-center">
-                        {{
-                          isNavigating
-                            ? `${passedWaypointIndex + 1} / ${routeCoordinates.length}`
-                            : "0 / 0"
-                        }}
-                      </div>
-                      <div class="text-subtitle2 text-grey-7 text-center">
-                        Next Waypoint
-                      </div>
-                    </div>
-                    <div class="col">
-                      <div class="text-h5 text-weight-medium text-center">
-                        {{
-                          isNavigating && estimatedDelay && typeof estimatedDelay[0] === 'number'
-                            ? estimatedDelay[0].toFixed(2)
-                            : "0.00"
-                        }}
-                        <span class="text-caption">NM</span>
-                      </div>
-                      <div class="text-subtitle2 text-grey-7 text-center">
-                        Remaining Distance
-                      </div>
-                    </div>
-                    <div class="col">
-                      <div class="text-h5 text-weight-medium text-center">
-                        {{
-                          isNavigating && etaList[passedWaypointIndex + 1]
-                            ? formatTime(etaList[passedWaypointIndex + 1][1])
-                            : "--:--:--"
-                        }}
-                      </div>
-                      <div class="text-subtitle2 text-grey-7 text-center">
-                        Must Arrive
-                      </div>
-                    </div>
-                  </div>
-                </q-card-section>
-              </q-card>
-            </div>
-          </div>
-
-          <q-btn
-            class="full-width q-mt-md"
-            size="lg"
-            :color="isNavigating ? 'negative' : 'primary'"
-            :label="isNavigating ? 'Stop Navigation' : 'Start Navigation'"
-            @click="toggleNavigation"
-          />
         </div>
       </div>
     </div>
@@ -292,23 +300,26 @@ let prevTime = null;
 // Navigation update function
 async function initializeNavigation() {
   try {
+    // Retrieve update frequency period (in seconds) from localStorage;
+    // default to 1 second if none is found.
+    const savedPeriod = localStorage.getItem("updateFrequency");
+    const updateDelayMs = savedPeriod ? Number(savedPeriod) * 1000 : 1000;
+    
     navigationInterval = setInterval(async () => {
       try {
         const newPos = await CF.get_current_location();
+        // console.log("New position:", newPos);
         if (!newPos) return;
         const bearing = currentBoatPos.value ? CF.get_bearing(currentBoatPos.value, newPos) : 0;
         currentBearing.value = bearing;
         if (prevPos && prevTime) {
-          const distance = CF.get_2point_route_distance(prevPos, newPos);
-          const timeDiff = (CF.convert_unit("to-seconds", CF.get_time()) - prevTime) / 3600;
-          if (timeDiff > 0) {
-            currentSpeed.value = distance / timeDiff;
-          }
+          const currentTime = Date.now() / 1000; // high-resolution current time in seconds
+          currentSpeed.value = CF.updateSpeed(prevPos, prevTime, newPos, currentTime);
         }
         boatIcon.value = createBoatIcon(bearing);
         currentBoatPos.value = newPos;
         prevPos = newPos;
-        prevTime = CF.convert_unit("to-seconds", CF.get_time());
+        prevTime = Date.now() / 1000; // update previous timestamp
         if (routeCoordinates.value.length > passedWaypointIndex.value + 1 && !waypointSwitching.value) {
           const passed_waypoint = routeCoordinates.value[passedWaypointIndex.value];
           const next_waypoint = routeCoordinates.value[passedWaypointIndex.value + 1];
@@ -341,7 +352,7 @@ async function initializeNavigation() {
           });
         }
       }
-    }, 1000);
+    }, updateDelayMs);
   } catch (error) {
     console.error("Navigation initialization error:", error);
     isNavigating.value = false;
@@ -612,6 +623,6 @@ onBeforeUnmount(() => {
   border-radius: 8px;
 }
 .text-orange {
-    color: orange;
-  }
+  color: orange;
+}
 </style>
