@@ -1,5 +1,5 @@
 <template>
-  <q-page>
+  <q-page class="bg-grey-1">
     <div class="row justify-between q-pa-md">
       <!-- Map Section -->
       <div class="map-container" v-if="routeCoordinates.length">
@@ -51,7 +51,7 @@
           <!-- Main Dashboard Content -->
           <div class="col-10">
             <div class="column q-gutter-y-md">
-              <div class="text-h6">
+              <div class="text-h6 q-mb-sm">
                 {{ currentGPXFile || "No route loaded" }}
               </div>
 
@@ -59,7 +59,7 @@
               <div class="row q-col-gutter-md">
                 <!-- Current Speed Card -->
                 <div class="col-6">
-                  <q-card class="dashboard-card">
+                  <q-card flat bordered class="q-pa-md q-mb-md shadow-2 rounded">
                     <q-card-section>
                       <div class="text-h4 text-weight-bold text-primary">
                         {{ (isNavigating ? currentSpeed : 0)?.toFixed(1) || "0.0" }}
@@ -72,7 +72,7 @@
 
                 <!-- Delay Card -->
                 <div class="col-6">
-                  <q-card class="dashboard-card">
+                  <q-card flat bordered class="q-pa-md q-mb-md shadow-2 rounded">
                     <q-card-section>
                       <div class="text-h4 text-weight-bold" :class="delayColor">
                         {{ isNavigating ? (estimatedDelay ? formatDelay(estimatedDelay[2]) : "--:--") : "0:00" }}
@@ -91,7 +91,7 @@
 
                 <!-- Waypoint Info Card -->
                 <div class="col-12">
-                  <q-card class="dashboard-card">
+                  <q-card flat bordered class="q-pa-md q-mb-md shadow-2 rounded">
                     <q-card-section>
                       <div class="row justify-between items-center">
                         <div class="col">

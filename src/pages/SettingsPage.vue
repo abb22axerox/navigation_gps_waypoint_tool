@@ -1,5 +1,5 @@
 <template>
-  <q-page class="q-pa-md">
+  <q-page class="q-pa-md bg-grey-1">
     <!-- Enhanced Header -->
     <div class="page-header q-mb-lg">
       <div class="row items-center">
@@ -17,7 +17,7 @@
     <div class="row q-col-gutter-md">
       <!-- Parameters Card -->
       <div class="col-12 col-sm-6">
-        <q-card class="settings-card" bordered>
+        <q-card flat bordered class="settings-card q-pa-md shadow-2 rounded">
           <q-card-section>
             <div class="text-h6 q-mb-md">Navigation Parameters</div>
             <!-- Speed Input -->
@@ -32,7 +32,7 @@
               @update:model-value="handleSpeedUpdate"
             >
               <template v-slot:append>
-                <q-icon name="speed" />
+                <q-icon name="speed" color="primary" />
               </template>
             </q-input>
 
@@ -41,7 +41,7 @@
               class="q-mb-sm"
               filled
               v-model="plannedTime"
-              label="Start Time (Hours:Minutes:Seconds)"
+              label="Start Time (HH:MM:SS)"
               mask="fulltime"
               :rules="['fulltime']"
               :readonly="useCurrentTime"
@@ -50,12 +50,8 @@
               @update:model-value="handleManualTimeUpdate"
             >
               <template v-slot:append>
-                <q-icon name="access_time" class="cursor-pointer">
-                  <q-popup-proxy
-                    cover
-                    transition-show="scale"
-                    transition-hide="scale"
-                  >
+                <q-icon name="access_time" color="primary" class="cursor-pointer">
+                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
                     <q-time
                       v-model="plannedTime"
                       with-seconds
@@ -63,12 +59,7 @@
                       :readonly="useCurrentTime"
                     >
                       <div class="row items-center justify-end">
-                        <q-btn
-                          v-close-popup
-                          label="Close"
-                          color="primary"
-                          flat
-                        />
+                        <q-btn v-close-popup label="Close" color="primary" flat />
                       </div>
                     </q-time>
                   </q-popup-proxy>
@@ -95,7 +86,7 @@
               @update:model-value="handleUpdateFrequencyUpdate"
             >
               <template v-slot:append>
-                <q-icon name="update" />
+                <q-icon name="update" color="primary" />
               </template>
             </q-input>
           </q-card-section>
@@ -104,10 +95,10 @@
 
       <!-- GPS2IP Settings Card -->
       <div class="col-12 col-sm-6">
-        <q-card class="settings-card" bordered>
+        <q-card flat bordered class="settings-card q-pa-md shadow-2 rounded">
           <q-card-section>
             <div class="text-h6 q-mb-md">GPS2IP Connection Settings</div>
-            <q-banner class="bg-blue-1 text-blue q-mt-md" rounded>
+            <q-banner class="bg-blue-1 text-blue q-mt-md rounded" dense>
               <template v-slot:avatar>
                 <q-icon name="info" color="blue" />
               </template>
@@ -126,7 +117,7 @@
 
       <!-- Route Upload Card -->
       <div class="col-12 col-sm-6">
-        <q-card class="settings-card" bordered>
+        <q-card flat bordered class="settings-card q-pa-md shadow-2 rounded">
           <q-card-section>
             <div class="text-h6 q-mb-md">Route Configuration</div>
             <q-file
@@ -140,21 +131,17 @@
               :display-value="displayFileName"
             >
               <template v-slot:prepend>
-                <q-icon name="upload_file" @click.stop.prevent />
+                <q-icon name="upload_file" color="primary" @click.stop.prevent />
               </template>
               <template v-slot:append>
-                <q-icon
-                  name="close"
-                  @click.stop.prevent="clearFile"
-                  class="cursor-pointer"
-                />
+                <q-icon name="close" color="primary" @click.stop.prevent="clearFile" class="cursor-pointer" />
               </template>
               <template v-slot:hint>
                 Select a GPX file to load route waypoints
               </template>
             </q-file>
 
-            <q-banner v-if="error" class="bg-red-1 text-red q-mt-md" rounded>
+            <q-banner v-if="error" class="bg-red-1 text-red q-mt-md rounded" dense>
               <template v-slot:avatar>
                 <q-icon name="error" color="negative" />
               </template>
@@ -181,7 +168,7 @@ const plannedSpeed = ref(0);
 const dense = ref(true);
 const plannedTime = ref("");
 const useCurrentTime = ref(false);
-const updateFrequencyHz = ref(1); // Default 1 Hz update (i.e., 1 second period)
+const updateFrequencyHz = ref(1); // Default 1 Hz update
 
 function handleFileUpload() {
   if (!gpxFile.value) return;
@@ -283,7 +270,6 @@ function handleUpdateFrequencyUpdate(value) {
     });
     return;
   }
-  // Convert frequency in Hz to period in seconds
   const period = 1 / value;
   localStorage.setItem("updateFrequency", period.toString());
   $q.notify({
@@ -326,7 +312,6 @@ onMounted(() => {
   }
   const savedUpdateFrequency = localStorage.getItem("updateFrequency");
   if (savedUpdateFrequency) {
-    // stored value is period in seconds, so convert to Hz
     const period = Number(savedUpdateFrequency);
     if (period > 0) {
       updateFrequencyHz.value = 1 / period;
@@ -342,8 +327,7 @@ onMounted(() => {
   border-radius: 8px;
 }
 .settings-card {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  transition: box-shadow 0.3s ease;
 }
 .settings-card:hover {
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);

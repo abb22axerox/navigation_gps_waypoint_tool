@@ -1,5 +1,5 @@
 <template>
-  <q-page class="q-pa-md">
+  <q-page class="q-pa-md bg-grey-1">
     <!-- Enhanced Header -->
     <div class="page-header q-mb-lg">
       <div class="row items-center">
@@ -20,16 +20,12 @@
       <!-- Left Column -->
       <div class="col-12 col-sm-4">
         <!-- Navigation & GPS2IP Status Card -->
-        <q-card flat bordered class="q-mb-md">
+        <q-card flat bordered class="q-pa-md q-mb-md shadow-2 rounded">
           <q-card-section>
             <div class="text-h6 q-mb-md">Status</div>
-            <!-- Existing Navigation Status -->
+            <!-- Navigation Status -->
             <q-banner
-              :class="
-                isNavigating
-                  ? 'bg-green-1 text-green'
-                  : 'bg-orange-1 text-orange'
-              "
+              :class="isNavigating ? 'bg-green-1 text-green' : 'bg-orange-1 text-orange'"
               rounded
               class="q-mb-sm"
             >
@@ -38,7 +34,7 @@
               </template>
               {{ isNavigating ? "Navigating" : "Not Navigating" }}
             </q-banner>
-            <!-- New GPS2IP Connection Status -->
+            <!-- GPS2IP Connection Status -->
             <q-banner
               :class="gpsConnected ? 'bg-green-1 text-green' : 'bg-red-1 text-red'"
               rounded
@@ -57,27 +53,27 @@
         </q-card>
 
         <!-- Route Details Card -->
-        <q-card class="details-card" bordered>
+        <q-card flat bordered class="q-pa-md q-mb-md shadow-2 rounded">
           <q-card-section>
             <div class="text-h6 q-mb-md">Route Details</div>
-            <div class="route-details">
-              <div class="detail-item">
-                <q-icon name="straight" class="q-mr-sm" />
+            <div class="q-gutter-sm">
+              <div class="row items-center">
+                <q-icon name="straight" class="q-mr-sm" color="primary" />
                 <span class="text-weight-medium">Total Distance:</span>
                 <span class="q-ml-sm">{{ totalDistance }} nm</span>
               </div>
-              <div class="detail-item q-mt-md">
-                <q-icon name="speed" class="q-mr-sm" />
+              <div class="row items-center q-mt-sm">
+                <q-icon name="speed" class="q-mr-sm" color="primary" />
                 <span class="text-weight-medium">Planned Speed:</span>
                 <span class="q-ml-sm">{{ plannedSpeed }} knots</span>
               </div>
-              <div class="detail-item q-mt-md">
-                <q-icon name="schedule" class="q-mr-sm" />
+              <div class="row items-center q-mt-sm">
+                <q-icon name="schedule" class="q-mr-sm" color="primary" />
                 <span class="text-weight-medium">Start Time:</span>
                 <span class="q-ml-sm">{{ startTime }}</span>
               </div>
-              <div class="detail-item q-mt-md">
-                <q-icon name="schedule" class="q-mr-sm" />
+              <div class="row items-center q-mt-sm">
+                <q-icon name="schedule" class="q-mr-sm" color="primary" />
                 <span class="text-weight-medium">End Time:</span>
                 <span class="q-ml-sm">{{ endTime }}</span>
               </div>
@@ -88,15 +84,15 @@
 
       <!-- Waypoints Table Card -->
       <div class="col-12 col-sm-8">
-        <q-card flat bordered>
+        <q-card flat bordered class="q-pa-md shadow-2 rounded">
           <q-card-section>
             <div class="text-h6 q-mb-md">Waypoints</div>
-            <q-markup-table separator="cell" flat bordered>
+            <q-markup-table separator="cell" flat bordered class="bg-white rounded">
               <thead>
-                <tr>
-                  <th class="text-left bg-blue-1">Waypoint</th>
-                  <th class="text-left bg-blue-1">Coordinate</th>
-                  <th class="text-left bg-blue-1">Estimated Time of Arrival</th>
+                <tr class="text-left bg-blue-1 text-black">
+                  <th>Waypoint</th>
+                  <th>Coordinate</th>
+                  <th>Estimated Time of Arrival</th>
                 </tr>
               </thead>
               <tbody>
@@ -117,7 +113,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, computed } from "vue";
+import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import * as CF from "src/utils/calculation_functions";
 import { gpsListener } from "src/boot/gps-listener";
 
@@ -127,12 +123,22 @@ const plannedSpeed = ref(0);
 const gpsConnected = ref(false);
 const gpsError = ref(null);
 
-// Add these new reactive references
 const totalDistance = ref(0);
 const startTime = ref("--:--:--");
 const endTime = ref("--:--:--");
 
-// Add this new function to calculate route details
+function formatTimeArray(timeArray) {
+  if (!Array.isArray(timeArray)) return timeArray;
+  const [hours, minutes, seconds] = timeArray;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function parseTimeString(timeStr) {
+  if (!timeStr) return null;
+  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
+  return [hours, minutes, seconds, 0];
+}
+
 async function calculateRouteDetails() {
   try {
     const coordinates = await CF.get_route_coordinates();
@@ -142,33 +148,25 @@ async function calculateRouteDetails() {
       const plannedSpeedValue = localStorage.getItem("plannedSpeed");
       plannedSpeed.value = plannedSpeedValue || 0;
 
-      // First get the saved start time
       const savedTime = localStorage.getItem("plannedTime");
       const useCurrentTime = localStorage.getItem("useCurrentTime") === "true";
-      
-      // Set start time first
       if (useCurrentTime) {
         startTime.value = formatTimeArray(CF.get_time());
       } else if (savedTime) {
         startTime.value = savedTime;
       }
 
-      // Then handle ETAs
       const savedETA = localStorage.getItem("waypointsETA");
       if (savedETA) {
         const eta = JSON.parse(savedETA);
         endTime.value = formatTimeArray(eta[eta.length - 1][1]);
-        waypoints.value = coordinates.map((coord, index) => {
-          return [coord, eta[index][1]];
-        });
+        waypoints.value = coordinates.map((coord, index) => [coord, eta[index][1]]);
       } else if (plannedSpeedValue && coordinates.length) {
         const startTimeArray = useCurrentTime ? CF.get_time() : parseTimeString(savedTime);
         const eta = await CF.get_eta_for_waypoints(startTimeArray, Number(plannedSpeedValue));
         if (eta.length) {
           endTime.value = formatTimeArray(eta[eta.length - 1][1]);
-          waypoints.value = coordinates.map((coord, index) => {
-            return [coord, eta[index][1]];
-          });
+          waypoints.value = coordinates.map((coord, index) => [coord, eta[index][1]]);
         }
       }
     }
@@ -177,20 +175,6 @@ async function calculateRouteDetails() {
   }
 }
 
-function formatTimeArray(timeArray) {
-  if (!Array.isArray(timeArray)) return timeArray;
-  const [hours, minutes, seconds] = timeArray;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-// Add this helper function if not already present
-function parseTimeString(timeStr) {
-  if (!timeStr) return null;
-  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
-  return [hours, minutes, seconds, 0];
-}
-
-// Setup real-time GPS connection monitoring
 function setupGpsListener() {
   gpsListener.on('connected', () => {
     gpsConnected.value = true;
@@ -229,10 +213,7 @@ watch(() => localStorage.getItem("isNavigating"), (newValue) => {
 });
 
 onMounted(async () => {
-  // Get initial navigation status
   isNavigating.value = localStorage.getItem("isNavigating") === "true";
-  
-  // ...existing setup code...
   setupGpsListener();
   checkGPS();
   await calculateRouteDetails();
@@ -248,54 +229,9 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* ...existing styles... */
 .page-header {
   background: linear-gradient(to right, rgba(25, 118, 210, 0.05), transparent);
   padding: 1.5rem;
   border-radius: 8px;
-}
-.status-card,
-.waypoints-card {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-.status-card:hover,
-.waypoints-card:hover {
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-}
-.status-banner {
-  font-size: 1.1em;
-}
-.waypoints-table {
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 4px;
-}
-.waypoints-table th {
-  padding: 16px;
-  font-size: 0.95em;
-  border-bottom: 2px solid rgba(0, 0, 0, 0.12);
-}
-.waypoints-table td {
-  padding: 12px 16px;
-  font-size: 0.95em;
-}
-.waypoints-table tr:hover {
-  background-color: rgba(0, 0, 0, 0.03);
-}
-.details-card {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-.details-card:hover {
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-}
-.detail-item {
-  display: flex;
-  align-items: center;
-  font-size: 1.1em;
-}
-.detail-item .q-icon {
-  font-size: 1.2em;
-  color: #1976d2;
 }
 </style>
