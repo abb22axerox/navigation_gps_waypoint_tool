@@ -1,7 +1,22 @@
 # GPS Waypoint Navigation Tool
 <img width="1354" alt="Skärmavbild 2025-05-04 kl  21 02 22" src="https://github.com/user-attachments/assets/9abe6f08-0bbd-4bb7-9c93-8161ca43f356" />
 
-A web‑based application for navigating routes using GPS waypoints. The project uses Vue.js with Quasar Framework for the frontend, a Node.js GPS bridge server for communicating with a GPS2IP device, and a collection of utility functions to calculate route distances, estimated times of arrival (ETA), and delays.
+The GPS Waypoint Navigation Tool is a precision marine navigation system designed to help ship captains and maritime operators follow predefined routes with second‑level accuracy. Built with Vue.js and the Quasar Framework, this tool integrates real‑time GPS data via a WebSocket-connected GPS bridge server — enabling captains to track their vessel's progress, adjust speed, and receive precise ETAs at each waypoint.
+
+By leveraging detailed route calculations and real‑time updates, the system displays vital navigation metrics on the **IndexPage**. Here, you will see:
+
+- **Current Speed:** This value shows the vessel's speed (in knots) based on real‑time GPS data.
+- **Delay Indicator:** This reflects any deviation from the planned schedule. Even second‑level delays are calculated, ensuring high precision.
+- **Next Waypoint Information:** Displays the upcoming waypoint position along with the estimated arrival time, so you know the exact time (to the second) when the vessel should reach its next coordinate.
+- **Throttle Slider:** The throttle slider offers a visual representation of throttle adjustments required to correct speed or compensate for delays. A positive or negative value indicates an alert to either speed up or decelerate to stay on schedule.
+
+This marine‑oriented solution provides:
+
+- **Second‑precision timing:** Ensure that routes and arrival times are monitored down to the second—a critical factor in tight navigational scenarios.
+- **Real‑time feedback:** The integration with a GPS Bridge Server allows data to be streamed live, so captains constantly have the most current information at their fingertips.
+- **Intuitive interfaces:** With responsive layouts, interactive maps, and clear data dashboards, even complex information is presented in a user‑friendly way.
+
+Whether you are navigating coastal waters, busy shipping lanes, or open seas, the GPS Waypoint Navigation Tool empowers you with the precision and control you need for safe, timely, and efficient marine navigation.
 
 ## Table of Contents
 
