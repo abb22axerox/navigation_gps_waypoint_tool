@@ -1,4 +1,5 @@
 # GPS Waypoint Navigation Tool
+<img width="1354" alt="Skärmavbild 2025-05-04 kl  21 02 22" src="https://github.com/user-attachments/assets/9abe6f08-0bbd-4bb7-9c93-8161ca43f356" />
 
 A web‑based application for navigating routes using GPS waypoints. The project uses Vue.js with Quasar Framework for the frontend, a Node.js GPS bridge server for communicating with a GPS2IP device, and a collection of utility functions to calculate route distances, estimated times of arrival (ETA), and delays.
 
