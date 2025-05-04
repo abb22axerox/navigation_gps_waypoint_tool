@@ -4,7 +4,7 @@
       <q-toolbar>
         <q-toolbar-title class="text-weight-bold">
           <q-icon name="navigation" size="24px" class="q-mr-sm" />
-          GPS Waypoint Navigation
+          GPS Waypoint Navigation Tool
         </q-toolbar-title>
 
         <q-space />
