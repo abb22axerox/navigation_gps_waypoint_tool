@@ -26,6 +26,8 @@ Whether you are navigating coastal waters, busy shipping lanes, or open seas, th
 - [Usage](#usage)
 - [Calculation Functions Explained](#calculation-functions-explained)
 - [GPS Bridge Server](#gps-bridge-server)
+- [Issues and Solutions](#issues-and-solutions)
+- [Future Improvements](#future-improvements)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -74,7 +76,6 @@ Whether you are navigating coastal waters, busy shipping lanes, or open seas, th
    ```
 
 3. **Configure the Environment:**
-
    - Ensure that you have Node.js installed.
    - Edit the `start-bridge.sh` file if you need to change the default GPS2IP host and port.
 
@@ -156,6 +157,33 @@ The GPS Bridge Server script is located in `src/utils/gps-bridge-server.mjs` and
 - Connects to a GPS2IP device via TCP.
 - Receives NMEA data from the GPS2IP device.
 - Broadcasts the GPS data via a WebSocket server so that the Vue client can receive real‑time location updates.
+
+## Issues and Solutions
+
+Throughout development, several challenges were encountered and solved:
+
+- **Transition from Python to JavaScript:**  
+  Initially, much of the calculation logic was written in Python. However, developing the UI with Python libraries proved challenging compared to JavaScript. The decision was then made to translate the code in `calculation_functions.js` from Python to JavaScript, allowing seamless integration with the Quasar app and easier UI development.
+
+- **GPS Data Transmission from iPhone:**  
+  As computers tend to not have a gps inside, I had to discover a way to send GPS data from my iPhone. In an early trial, I attempted to use the iPhone Shortcuts app to send GPS data directly from the phone. However, this approach faced significant challenges due to issues with reliability and the limited coding capabilities within the Shortcuts environment. The data often arrived inconsistently, which could lead to gaps in navigation monitoring. Ultimately, these issues led me to adopt the GPS2IP app on the iPhone, which provided a much more stable and reliable connection for streaming GPS data. This change ensured that the system receives GPS data consistently regardless of network connectivity.
+
+- **State Management on Page Change:**  
+  A major challenge was that when switching pages, the IndexPage reset its logic, causing a loss of state. This was mitigated by using consistent localStorage memory, ensuring that the program remembers its state (such as current waypoint and navigation status) even when pages change.
+
+## Future Improvements
+
+- **Responsive Design for Tablet and Phone Screens:**  
+  Though current layouts work well on a pc, further refinements in the user interface could enhance usability on various screen sizes, such as tablets and phones, including more dynamic layouts for complex data visualization.
+
+- **Alternative Data Transmission Methods:**  
+  In addition to WiFi and the current GPS2IP approach, exploring other transmission methods (such as cellular networks or satellite communication) could further improve the reliability of GPS data uptake in areas with limited WiFi connectivity.
+
+- **Offline Capabilities:**  
+  Future iterations could integrate offline storage and caching mechanisms to ensure uninterrupted navigation data, even in poor connectivity environments.
+
+- **Advanced Navigation Features:**  
+  Integration of weather data, real-time traffic information for shipping lanes, and predictive modeling for speed and fuel consumption might further enhance the navigation experience.
 
 ## Contributing
 
