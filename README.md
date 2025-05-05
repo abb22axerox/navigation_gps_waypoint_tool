@@ -1,5 +1,5 @@
 # GPS Waypoint Navigation Tool
-<img width="1271" alt="Skärmavbild 2025-05-04 kl  21 09 11" src="https://github.com/user-attachments/assets/aedcfd68-6446-42d3-88f2-0a50c15c989f" />
+<img width="1440" alt="Skärmavbild 2025-05-05 kl  09 22 17" src="https://github.com/user-attachments/assets/38f6346b-73c5-4246-81eb-80e4411e37d6" />
 
 The GPS Waypoint Navigation Tool is a precision marine navigation system designed to help ship captains and maritime operators follow predefined routes with second‑level accuracy. Built with Vue.js and the Quasar Framework, this tool integrates real‑time GPS data via a WebSocket-connected GPS bridge server — enabling captains to track their vessel's progress, adjust speed, and receive precise ETAs at each waypoint.
 
