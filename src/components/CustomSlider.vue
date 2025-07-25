@@ -1,12 +1,12 @@
 <template>
   <div class="vertical-slider-container">
-    <div class="slider-label top-label">Early</div>
+    <div class="slider-label top-label">Late</div>
     <div class="custom-slider vertical" @click="onClick($event)">
       <div class="custom-slider-track"></div>
-      <div class="custom-slider-thumb" :style="{ bottom: thumbPosition }"></div> 
+      <div class="custom-slider-thumb" :style="{ bottom: thumbPosition }"></div>
     </div>
-    <div class="slider-label bottom-label">Late</div>
-    
+    <div class="slider-label bottom-label">Early</div>
+
     <!-- Throttle indicators -->
     <div class="throttle-indicators">
       <div class="throttle-indicator up">Throttle Up</div>

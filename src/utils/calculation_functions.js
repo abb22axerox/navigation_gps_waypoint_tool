@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import { gpsListener } from "src/boot/gps-listener";
+import { gpsListener, latestPosition} from "src/boot/gps-listener";
 
 export function get_time() {
   let now = new Date();
@@ -193,28 +193,60 @@ export async function get_estimated_delay(eta_list, waypoint_index, current_spee
       throttle_alert = (Math.min(delay, coarse_threshold) / coarse_threshold) * (is_delay_positive ? 1 : -1);
     }
   }
-  
+
   return [remaining_distance, delay, formatted_delay, is_delay_positive, throttle_alert];
 }
 
 export async function get_current_location() {
-  // If a valid location is already available, return it immediately.
-  if (gpsListener.latest) {
-    return Promise.resolve(gpsListener.latest)
+  if (latestPosition.value) {
+    return latestPosition.value;
   }
   // Otherwise, wait for the next location event.
   return new Promise((resolve, reject) => {
     const onLocation = (coords) => resolve(coords)
     const onError = (err) => reject(err)
-    gpsListener.once('location', onLocation)
-    gpsListener.once('error', onError)
+    // Listen for the next valid location
+    import("src/boot/gps-listener").then(({ gpsListener }) => {
+      gpsListener.once('location', onLocation)
+      gpsListener.once('error', onError)
+    })
   })
 }
 
+// export function updateSpeed(prevPos, prevTime, newPos, currentTime) {
+//   const distance = get_2point_route_distance(prevPos, newPos);
+//   const timeDiff = (currentTime - prevTime) / 3600;
+//   return timeDiff > 0 ? distance / timeDiff : 0;
+// }
+
+const speedHistory = [];
+
 export function updateSpeed(prevPos, prevTime, newPos, currentTime) {
+  // Calculate distance in nautical miles
   const distance = get_2point_route_distance(prevPos, newPos);
+  // Calculate time difference in hours
   const timeDiff = (currentTime - prevTime) / 3600;
-  return timeDiff > 0 ? distance / timeDiff : 0;
+
+  // Ignore if timeDiff is too small or zero
+  if (timeDiff < 0.5 / 3600) return speedHistory.length ? average(speedHistory) : 0;
+
+  // Calculate speed in knots
+  let speed = timeDiff > 0 ? distance / timeDiff : 0;
+
+  // Ignore unrealistic jumps (e.g., > 20 knots)
+  if (speed > 20 || speed < 0) {
+    speed = speedHistory.length ? average(speedHistory) : 0;
+  }
+
+  // Add to history and keep last 5 values
+  speedHistory.push(speed);
+  if (speedHistory.length > 5) speedHistory.shift();
+
+  return average(speedHistory);
+}
+
+function average(arr) {
+  return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
 
 export function formatCoordinates(coords) {

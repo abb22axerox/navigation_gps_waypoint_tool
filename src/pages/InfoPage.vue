@@ -44,9 +44,6 @@
               </template>
               <div class="column">
                 {{ gpsConnected ? "GPS2IP Connected" : "GPS2IP Not Connected" }}
-                <div v-if="gpsError" class="text-caption text-grey-8">
-                  {{ gpsError }}
-                </div>
               </div>
             </q-banner>
           </q-card-section>
@@ -115,12 +112,11 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import * as CF from "src/utils/calculation_functions";
-import { gpsListener } from "src/boot/gps-listener";
+import { gpsConnected, gpsListener } from "src/boot/gps-listener";
 
 const waypoints = ref([]);
 const isNavigating = ref(localStorage.getItem("isNavigating") === "true");
 const plannedSpeed = ref(0);
-const gpsConnected = ref(false);
 const gpsError = ref(null);
 
 const totalDistance = ref(0);
@@ -144,7 +140,7 @@ async function calculateRouteDetails() {
     const coordinates = await CF.get_route_coordinates();
     if (coordinates && coordinates.length) {
       totalDistance.value = CF.get_total_route_distance(coordinates).toFixed(2);
-      
+
       const plannedSpeedValue = localStorage.getItem("plannedSpeed");
       plannedSpeed.value = plannedSpeedValue || 0;
 
@@ -175,56 +171,16 @@ async function calculateRouteDetails() {
   }
 }
 
-function setupGpsListener() {
-  gpsListener.on('connected', () => {
-    gpsConnected.value = true;
-    gpsError.value = null;
-  });
-  
-  gpsListener.on('location', () => {
-    gpsConnected.value = true;
-    gpsError.value = null;
-  });
-  
-  gpsListener.on('error', (error) => {
-    gpsConnected.value = false;
-    gpsError.value = error.message === 'GPS data stream stopped'
-      ? 'No GPS updates received'
-      : error.message;
-  });
-
-  gpsListener.on('close', () => {
-    gpsConnected.value = false;
-    gpsError.value = 'Connection closed';
-  });
-}
-
-async function checkGPS() {
-  try {
-    const loc = await CF.get_current_location();
-    gpsConnected.value = !!loc;
-  } catch (err) {
-    gpsConnected.value = false;
-  }
-}
-
 watch(() => localStorage.getItem("isNavigating"), (newValue) => {
   isNavigating.value = newValue === "true";
 });
 
-onMounted(async () => {
+onMounted(() => {
   isNavigating.value = localStorage.getItem("isNavigating") === "true";
-  setupGpsListener();
-  checkGPS();
-  await calculateRouteDetails();
+  calculateRouteDetails();
 });
 
 onBeforeUnmount(() => {
-  gpsListener.stop();
-  gpsListener.removeAllListeners('connected');
-  gpsListener.removeAllListeners('location');
-  gpsListener.removeAllListeners('error');
-  gpsListener.removeAllListeners('close');
 });
 </script>
 

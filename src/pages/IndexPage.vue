@@ -168,7 +168,7 @@
 
 <script setup>
 import CustomSlider from 'src/components/CustomSlider.vue';
-import { gpsListener } from "src/boot/gps-listener";
+import { gpsConnected, gpsListener } from "src/boot/gps-listener";
 import { ref, onMounted, onBeforeUnmount, nextTick, watch, computed } from "vue";
 import { useQuasar } from "quasar";
 import * as CF from "src/utils/calculation_functions";
@@ -274,21 +274,17 @@ const etaList = ref([]);
 const estimatedDelay = ref(null);
 const throttleValue = ref(0);
 
-// Assuming estimatedDelay is set by get_estimated_delay and has at least 5 elements:
 const delayColor = computed(() => {
   if (!estimatedDelay.value || estimatedDelay.value.length < 5) return '';
-  let seconds = estimatedDelay.value[1]; // raw delay seconds
-  // Use absolute seconds regardless of early or late.
-  if (seconds <= 3) return 'text-positive'; // green: ~3 seconds
-  else if (seconds <= 5) return 'text-warning'; // yellow: a little more
-  else if (seconds <= 10) return 'text-orange'; // orange: moderate delay
-  else return 'text-negative'; // red: over 10 seconds
+  let seconds = estimatedDelay.value[1];
+  if (seconds <= 3) return 'text-positive';
+  else if (seconds <= 5) return 'text-warning';
+  else if (seconds <= 10) return 'text-orange';
+  else return 'text-negative';
 });
 
-// Update the estimatedDelay watcher to update throttle
 watch(() => estimatedDelay.value, (newDelay) => {
   if (newDelay?.length) {
-    // Use index 4 (throttle_alert) instead of index 3
     throttleValue.value = newDelay[4];
   }
 });
@@ -297,33 +293,33 @@ let navigationInterval = null;
 let prevPos = null;
 let prevTime = null;
 
-// Navigation update function
 async function initializeNavigation() {
   try {
-    // Retrieve update frequency period (in seconds) from localStorage;
-    // default to 1 second if none is found.
     const savedPeriod = localStorage.getItem("updateFrequency");
     const updateDelayMs = savedPeriod ? Number(savedPeriod) * 1000 : 1000;
-    
     navigationInterval = setInterval(async () => {
       try {
         const newPos = await CF.get_current_location();
-        // console.log("New position:", newPos);
+        console.log("New position:", newPos);
         if (!newPos) return;
         const bearing = currentBoatPos.value ? CF.get_bearing(currentBoatPos.value, newPos) : 0;
         currentBearing.value = bearing;
         if (prevPos && prevTime) {
-          const currentTime = Date.now() / 1000; // high-resolution current time in seconds
+          const currentTime = Date.now() / 1000;
           currentSpeed.value = CF.updateSpeed(prevPos, prevTime, newPos, currentTime);
         }
         boatIcon.value = createBoatIcon(bearing);
         currentBoatPos.value = newPos;
         prevPos = newPos;
-        prevTime = Date.now() / 1000; // update previous timestamp
-        if (routeCoordinates.value.length > passedWaypointIndex.value + 1 && !waypointSwitching.value) {
+        prevTime = Date.now() / 1000;
+        if (
+          routeCoordinates.value.length > passedWaypointIndex.value + 1 &&
+          !waypointSwitching.value
+        ) {
           const passed_waypoint = routeCoordinates.value[passedWaypointIndex.value];
           const next_waypoint = routeCoordinates.value[passedWaypointIndex.value + 1];
-          if (CF.calculate_dot_product(passed_waypoint, next_waypoint)) {
+          const dotProductPositive = await CF.calculate_dot_product(passed_waypoint, next_waypoint);
+          if (dotProductPositive) {
             waypointSwitching.value = true;
             setTimeout(() => {
               passedWaypointIndex.value++;
@@ -342,15 +338,13 @@ async function initializeNavigation() {
         }
       } catch (error) {
         console.warn("Navigation update error:", error);
-        if (error.message.includes("No Listener")) {
-          toggleNavigation();
-          $q.notify({
-            type: "negative",
-            message: "Navigation stopped due to connection error",
-            position: "top",
-            timeout: 3000,
-          });
-        }
+        stopNavigation();
+        $q.notify({
+          type: "negative",
+          message: "Navigation stopped due to connection error",
+          position: "top",
+          timeout: 3000,
+        });
       }
     }, updateDelayMs);
   } catch (error) {
@@ -359,61 +353,12 @@ async function initializeNavigation() {
   }
 }
 
-// Time string parser helper
 function parseTimeString(timeStr) {
   const [hours, minutes, seconds] = timeStr.split(":").map(Number);
   return [hours, minutes, seconds, 0];
 }
 
-function handleGpsDisconnect() {
-  if (isNavigating.value) {
-    $q.notify({
-      type: "negative",
-      message: "Navigation stopped: GPS2IP connection lost",
-      position: "top",
-      timeout: 3000,
-    });
-    // Stop navigation
-    clearInterval(navigationInterval);
-    navigationInterval = null;
-    currentBoatPos.value = null;
-    prevPos = null;
-    prevTime = null;
-    currentSpeed.value = 0;
-    localStorage.setItem("isNavigating", false);
-    isNavigating.value = false;
-  }
-}
-
-async function verifyGpsConnection() {
-  if (!gpsListener.isConnected) {
-    // Try to restart the connection
-    gpsListener.stop();
-    gpsListener.start();
-    
-    // Wait for connection to establish
-    await new Promise((resolve) => {
-      const timeout = setTimeout(() => resolve(false), 3000);
-      
-      const onConnect = () => {
-        clearTimeout(timeout);
-        resolve(true);
-      };
-      
-      gpsListener.once('connected', onConnect);
-    });
-  }
-  return gpsListener.isConnected;
-}
-
 onMounted(async () => {
-  // Listen for disconnect or error events from gpsListener.
-  gpsListener.on('disconnected', handleGpsDisconnect);
-  gpsListener.on('error', (err) => {
-    console.error("GPS error from listener:", err);
-    handleGpsDisconnect();
-  });
-  
   currentGPXFile.value = (localStorage.getItem("currentGPXFileName") || "").replace(".gpx", "");
   const coordinates = await CF.get_route_coordinates();
   if (coordinates.length) {
@@ -453,8 +398,8 @@ onMounted(async () => {
 });
 
 async function startNavigation() {
-  console.log('GPS2IP connected:', gpsListener.isConnected);
-  if (!gpsListener.isConnected) {
+  if (!gpsConnected.value) {
+    console.log("GPS2IP is not connected");
     $q.dialog({
       title: "Error",
       message: "GPS2IP is not connected. Please check your connection.",
@@ -465,8 +410,6 @@ async function startNavigation() {
     localStorage.setItem("isNavigating", false);
     return false;
   }
-  
-  // Then check if a valid initial position is available
   let initialPos;
   try {
     initialPos = await CF.get_current_location();
@@ -526,18 +469,33 @@ async function startNavigation() {
     plannedStartTime.value = parseTimeString(savedTime);
   }
   etaList.value = await CF.get_eta_for_waypoints(plannedStartTime.value, Number(plannedSpeed));
-  // Save ETAs to localStorage when navigation starts
   localStorage.setItem("waypointsETA", JSON.stringify(etaList.value));
-  
   initializeNavigation();
   return true;
 }
 
+function stopNavigation() {
+  clearInterval(navigationInterval);
+  navigationInterval = null;
+  currentBoatPos.value = null;
+  prevPos = null;
+  prevTime = null;
+  currentSpeed.value = 0;
+  currentBearing.value = 0;
+  passedWaypointIndex.value = 0;
+  waypointSwitching.value = false;
+  estimatedDelay.value = null;
+  throttleValue.value = 0;
+  etaList.value = [];
+  localStorage.removeItem("waypointsETA");
+  isNavigating.value = false;
+  localStorage.setItem("isNavigating", false);
+}
+
 async function toggleNavigation() {
   if (!isNavigating.value) {
-    // Verify GPS connection before starting
-    const isConnected = await verifyGpsConnection();
-    if (!isConnected) {
+    if (!gpsConnected.value) {
+      console.log("GPS2IP is not connected");
       $q.dialog({
         title: "Error",
         message: "GPS2IP is not connected. Please check your connection.",
@@ -547,19 +505,15 @@ async function toggleNavigation() {
       return;
     }
   }
-
   isNavigating.value = !isNavigating.value;
   localStorage.setItem("isNavigating", isNavigating.value);
-  
   if (isNavigating.value) {
-    // Reset navigation state before starting
     passedWaypointIndex.value = 0;
     waypointSwitching.value = false;
     estimatedDelay.value = null;
     throttleValue.value = 0;
     currentSpeed.value = 0;
     currentBearing.value = 0;
-    
     const success = await startNavigation();
     if (success) {
       $q.notify({
@@ -570,22 +524,7 @@ async function toggleNavigation() {
       });
     }
   } else {
-    // Clean up navigation state
-    clearInterval(navigationInterval);
-    navigationInterval = null;
-    currentBoatPos.value = null;
-    prevPos = null;
-    prevTime = null;
-    currentSpeed.value = 0;
-    currentBearing.value = 0;
-    passedWaypointIndex.value = 0;
-    waypointSwitching.value = false;
-    estimatedDelay.value = null;
-    throttleValue.value = 0;
-    etaList.value = [];
-    // Clear ETAs from localStorage when navigation stops
-    localStorage.removeItem("waypointsETA");
-    
+    stopNavigation();
     $q.notify({
       type: "warning",
       message: "Navigation stopped",
@@ -595,10 +534,19 @@ async function toggleNavigation() {
   }
 }
 
+watch(gpsConnected, (connected) => {
+  if (!connected && isNavigating.value) {
+    stopNavigation();
+    $q.dialog({
+      title: "GPS2IP Disconnected",
+      message: "GPS2IP connection lost. Navigation has been stopped. (Index watcher)",
+      persistent: true,
+      ok: { label: "OK", flat: true },
+    });
+  }
+});
+
 onBeforeUnmount(() => {
-  gpsListener.off('disconnected', handleGpsDisconnect);
-  // It’s a good idea to also remove the error listener.
-  gpsListener.off('error', handleGpsDisconnect);
 });
 </script>
 
