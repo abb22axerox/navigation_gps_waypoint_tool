@@ -1,3 +1,5 @@
+// node src/utils/gps-bridge-server.mjs --host 172.20.10.1 --port 11123
+
 import net from 'net'
 import WebSocket, { WebSocketServer } from 'ws'
 
@@ -14,9 +16,9 @@ const config = {
 for (let i = 0; i < args.length; i += 2) {
   const arg = args[i];
   const value = args[i + 1];
-  
+
   if (!value) continue;
-  
+
   switch (arg) {
     case '--host':
       config.gps2ipHost = value;
@@ -37,9 +39,9 @@ function connectToGps2ip() {
     gpsClient = null;
   }
   console.log(`👉 Attempting GPS2IP connection to ${config.gps2ipHost}:${config.gps2ipPort}`)
-  
+
   gpsClient = new net.Socket()
-  
+
   gpsClient.on('connect', () => {
     console.log(`🛰️ Connected to GPS2IP at ${config.gps2ipHost}:${config.gps2ipPort}`)
     reconnectAttempts = 0
@@ -48,7 +50,7 @@ function connectToGps2ip() {
   gpsClient.on('error', (error) => {
     console.error(`GPS connection error: ${error.code} (${error.address}:${error.port})`)
     reconnectAttempts++
-    
+
     if (reconnectAttempts < config.maxReconnectAttempts) {
       console.log(`⌛ Reconnecting in ${config.reconnectDelay/1000}s... (${reconnectAttempts}/${config.maxReconnectAttempts})`)
       setTimeout(() => connectToGps2ip(), config.reconnectDelay)

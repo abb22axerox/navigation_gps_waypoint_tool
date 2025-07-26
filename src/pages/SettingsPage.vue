@@ -97,7 +97,7 @@
       <div class="col-12 col-sm-6">
         <q-card flat bordered class="settings-card q-pa-md shadow-2 rounded">
           <q-card-section>
-            <div class="text-h6 q-mb-md">GPS2IP Connection Settings</div>
+            <div class="text-h6 q-mb-md">GPS Connection</div>
             <q-banner class="bg-blue-1 text-blue q-mt-md rounded" dense>
               <template v-slot:avatar>
                 <q-icon name="info" color="blue" />
@@ -107,7 +107,7 @@
                 <code class="q-mt-sm">
                   1. Open terminal<br>
                   2. Navigate to project root<br>
-                  3. Run: ./start-bridge.sh -h (PHONE SERVER IP) -p (PORT)
+                  3. Run: node src/boot/sensorlog-server-tcp.js
                 </code>
               </div>
             </q-banner>

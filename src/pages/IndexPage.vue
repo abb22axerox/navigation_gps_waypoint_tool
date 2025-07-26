@@ -168,49 +168,32 @@
 
 <script setup>
 import CustomSlider from 'src/components/CustomSlider.vue';
-import { gpsConnected, gpsListener } from "src/boot/gps-listener";
-import { ref, onMounted, onBeforeUnmount, nextTick, watch, computed } from "vue";
-import { useQuasar } from "quasar";
-import * as CF from "src/utils/calculation_functions";
-import { LMap, LTileLayer, LPolyline, LMarker } from "@vue-leaflet/vue-leaflet";
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
+import { ref, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue';
+import { useQuasar } from 'quasar';
+import * as CF from 'src/utils/calculation_functions';
+import { LMap, LTileLayer, LPolyline, LMarker } from '@vue-leaflet/vue-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 
-// Helper functions
 function formatTime(timeArray) {
-  if (!timeArray || !Array.isArray(timeArray)) return "--:--:--";
-  const [hours, minutes, seconds] = timeArray;
-  return [hours, minutes, seconds].map(v => String(v).padStart(2, "0")).join(":");
+  if (!Array.isArray(timeArray)) return '--:--:--';
+  const [h, m, s] = timeArray.map(v => String(v).padStart(2, '0'));
+  return `${h}:${m}:${s}`;
 }
 
 function formatDelay(delay) {
-  if (!delay || !Array.isArray(delay)) return "--:--";
-  const totalSeconds = CF.convert_unit("to-seconds", delay);
-  const absSeconds = Math.abs(totalSeconds);
-  const mins = Math.floor(absSeconds / 60);
-  const secs = Math.floor(absSeconds % 60);
-  let timeStr = "";
-  if (mins > 0) timeStr += `${mins}min `;
-  if (secs > 0 || mins === 0) timeStr += `${secs}s`;
-  return timeStr.trim();
+  if (!delay || !Array.isArray(delay)) return '--:--';
+  const total = CF.convert_unit('to-seconds', delay);
+  const abs = Math.abs(total);
+  const mins = Math.floor(abs / 60);
+  const secs = Math.floor(abs % 60);
+  return `${mins > 0 ? `${mins}min ` : ''}${secs}s`.trim();
 }
-
-// Icon definitions
-const dotIcon = L.divIcon({
-  html: '<div style="background:red; width:8px; height:8px; border-radius:50%;"></div>',
-  className: "",
-  iconSize: [8, 8],
-});
-const startEndIcon = L.divIcon({
-  html: '<div style="background:green; width:12px; height:12px; border-radius:50%;"></div>',
-  className: "",
-  iconSize: [12, 12],
-});
 
 function createBoatIcon(angle = 0) {
   return L.divIcon({
-    html: `<div style="transform: rotate(${angle}deg); font-size: 24px; line-height:1;">&#10148;</div>`,
-    className: "",
+    html: `<div style="transform: rotate(${angle}deg); font-size: 24px;">&#10148;</div>`,
+    className: '',
     iconSize: [24, 24],
     iconAnchor: [12, 12],
   });
@@ -218,55 +201,46 @@ function createBoatIcon(angle = 0) {
 
 function createIndexedDotIcon(index) {
   return L.divIcon({
-    html: `
-      <div style="position: relative;">
-        <div style="background:red; width:8px; height:8px; border-radius:50%;"></div>
-        <div style="position: absolute; top:-12px; left:8px; font-size:12px; background:white; padding:0 2px; border-radius:2px;">
-          ${index + 1}
-        </div>
-      </div>
-    `,
-    className: "",
-    iconSize: [8, 8],
+    html: `<div style="position: relative;">
+      <div style="background:red; width:8px; height:8px; border-radius:50%;"></div>
+      <div style="position: absolute; top:-12px; left:8px; font-size:12px; background:white; padding:0 2px; border-radius:2px;">${index + 1}</div>
+    </div>`,
+    className: '',
   });
 }
 
 function createIndexedStartEndIcon(index, isLast) {
   return L.divIcon({
-    html: `
-      <div style="position: relative;">
-        <div style="background:green; width:12px; height:12px; border-radius:50%;"></div>
-        <div style="position: absolute; top:-14px; left:12px; font-size:12px; font-weight:bold; background:white; padding:0 2px; border-radius:2px;">
-          ${isLast ? "END" : "START"}
-        </div>
-      </div>
-    `,
-    className: "",
-    iconSize: [12, 12],
+    html: `<div style="position: relative;">
+      <div style="background:green; width:12px; height:12px; border-radius:50%;"></div>
+      <div style="position: absolute; top:-14px; left:12px; font-size:12px; font-weight:bold; background:white; padding:0 2px; border-radius:2px;">${isLast ? 'END' : 'START'}</div>
+    </div>`,
+    className: '',
   });
 }
 
 function getWaypointIcon(index) {
   const isLast = index === routeCoordinates.value.length - 1;
-  if (index === 0 || isLast) {
-    return createIndexedStartEndIcon(index, isLast);
-  }
-  return createIndexedDotIcon(index);
+  return index === 0 || isLast
+    ? createIndexedStartEndIcon(index, isLast)
+    : createIndexedDotIcon(index);
 }
 
-// Reactive state
+function parseTimeString(str) {
+  return str.split(':').map(Number).concat(0);
+}
+
+const $q = useQuasar();
+const isNavigating = ref(localStorage.getItem('isNavigating') === 'true');
 const currentSpeed = ref(0);
 const currentBearing = ref(0);
-const currentGPXFile = ref("");
-const isNavigating = ref(localStorage.getItem("isNavigating") === "true");
+const currentGPXFile = ref('');
 const zoom = ref(13);
 const center = ref([59.75803, 18.62731]);
 const routeCoordinates = ref([]);
 const currentBoatPos = ref(null);
 const boatIcon = ref(createBoatIcon(0));
 const mapRef = ref(null);
-const $q = useQuasar();
-
 const passedWaypointIndex = ref(0);
 const waypointSwitching = ref(false);
 const plannedStartTime = ref(null);
@@ -275,201 +249,105 @@ const estimatedDelay = ref(null);
 const throttleValue = ref(0);
 
 const delayColor = computed(() => {
-  if (!estimatedDelay.value || estimatedDelay.value.length < 5) return '';
-  let seconds = estimatedDelay.value[1];
+  const seconds = estimatedDelay.value?.[1];
+  if (seconds == null) return '';
   if (seconds <= 3) return 'text-positive';
-  else if (seconds <= 5) return 'text-warning';
-  else if (seconds <= 10) return 'text-orange';
-  else return 'text-negative';
+  if (seconds <= 5) return 'text-warning';
+  if (seconds <= 10) return 'text-orange';
+  return 'text-negative';
 });
 
-watch(() => estimatedDelay.value, (newDelay) => {
-  if (newDelay?.length) {
-    throttleValue.value = newDelay[4];
-  }
+watch(estimatedDelay, (newDelay) => {
+  if (newDelay?.length) throttleValue.value = newDelay[4];
 });
+
+watch(isNavigating, (val) => {
+  localStorage.setItem('isNavigating', val);
+});
+
+function setNavigationState(active) {
+  isNavigating.value = active;
+  localStorage.setItem('isNavigating', active);
+}
 
 let navigationInterval = null;
 let prevPos = null;
 let prevTime = null;
 
 async function initializeNavigation() {
-  try {
-    const savedPeriod = localStorage.getItem("updateFrequency");
-    const updateDelayMs = savedPeriod ? Number(savedPeriod) * 1000 : 1000;
-    navigationInterval = setInterval(async () => {
-      try {
-        const newPos = await CF.get_current_location();
-        console.log("New position:", newPos);
-        if (!newPos) return;
-        const bearing = currentBoatPos.value ? CF.get_bearing(currentBoatPos.value, newPos) : 0;
-        currentBearing.value = bearing;
-        if (prevPos && prevTime) {
-          const currentTime = Date.now() / 1000;
-          currentSpeed.value = CF.updateSpeed(prevPos, prevTime, newPos, currentTime);
-        }
-        boatIcon.value = createBoatIcon(bearing);
-        currentBoatPos.value = newPos;
-        prevPos = newPos;
-        prevTime = Date.now() / 1000;
-        if (
-          routeCoordinates.value.length > passedWaypointIndex.value + 1 &&
-          !waypointSwitching.value
-        ) {
-          const passed_waypoint = routeCoordinates.value[passedWaypointIndex.value];
-          const next_waypoint = routeCoordinates.value[passedWaypointIndex.value + 1];
-          const dotProductPositive = await CF.calculate_dot_product(passed_waypoint, next_waypoint);
-          if (dotProductPositive) {
-            waypointSwitching.value = true;
-            setTimeout(() => {
-              passedWaypointIndex.value++;
-              waypointSwitching.value = false;
-            }, 1000);
-          }
-        }
-        if (etaList.value.length && plannedStartTime.value) {
-          CF.get_estimated_delay(
-            etaList.value,
-            passedWaypointIndex.value,
-            currentSpeed.value
-          ).then((result) => {
-            estimatedDelay.value = result;
-          });
-        }
-      } catch (error) {
-        console.warn("Navigation update error:", error);
-        stopNavigation();
-        $q.notify({
-          type: "negative",
-          message: "Navigation stopped due to connection error",
-          position: "top",
-          timeout: 3000,
-        });
-      }
-    }, updateDelayMs);
-  } catch (error) {
-    console.error("Navigation initialization error:", error);
-    isNavigating.value = false;
-  }
-}
+  const delayMs = Number(localStorage.getItem('updateFrequency') || 1) * 1000;
 
-function parseTimeString(timeStr) {
-  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
-  return [hours, minutes, seconds, 0];
-}
+  navigationInterval = setInterval(async () => {
+    try {
+      const pos = await CF.getLiveData('coordinates');
+      if (!pos) return;
 
-onMounted(async () => {
-  currentGPXFile.value = (localStorage.getItem("currentGPXFileName") || "").replace(".gpx", "");
-  const coordinates = await CF.get_route_coordinates();
-  if (coordinates.length) {
-    routeCoordinates.value = coordinates;
-    center.value = CF.calculateRouteMidpoint(coordinates);
-    passedWaypointIndex.value = 0;
-    await nextTick();
-    if (mapRef.value?.mapObject) {
-      mapRef.value.mapObject.whenReady(() => {
-        const bounds = L.latLngBounds(coordinates);
-        mapRef.value.mapObject.fitBounds(bounds, { padding: [50, 50] });
-      });
-    }
-    if (isNavigating.value) {
-      const initialPos = await CF.get_current_location();
-      currentBoatPos.value = initialPos;
-      prevPos = initialPos;
-      prevTime = CF.convert_unit("to-seconds", CF.get_time());
-      const storedETA = localStorage.getItem("waypointsETA");
-      if (storedETA) {
-        etaList.value = JSON.parse(storedETA);
-      }
-      const useCurrentTime = localStorage.getItem("useCurrentTime") === "true";
-      if (useCurrentTime) {
-        plannedStartTime.value = CF.get_time();
-      } else {
-        const savedTime = localStorage.getItem("plannedTime");
-        if (savedTime) {
-          plannedStartTime.value = parseTimeString(savedTime);
-        } else {
-          plannedStartTime.value = CF.get_time();
+      center.value = pos;
+
+      currentSpeed.value = await CF.getLiveData('speed') || 0;
+      currentBearing.value = currentBoatPos.value ? CF.get_bearing(currentBoatPos.value, pos) : 0;
+      boatIcon.value = createBoatIcon(currentBearing.value);
+      currentBoatPos.value = pos;
+      prevPos = pos;
+      prevTime = Date.now() / 1000;
+
+      if (routeCoordinates.value.length > passedWaypointIndex.value + 1 && !waypointSwitching.value) {
+        const from = routeCoordinates.value[passedWaypointIndex.value];
+        const to = routeCoordinates.value[passedWaypointIndex.value + 1];
+        if (await CF.calculate_dot_product(from, to)) {
+          waypointSwitching.value = true;
+          setTimeout(() => {
+            passedWaypointIndex.value++;
+            waypointSwitching.value = false;
+          }, 1000);
         }
       }
-      initializeNavigation();
+
+      if (etaList.value.length && plannedStartTime.value) {
+        estimatedDelay.value = await CF.get_estimated_delay(
+          etaList.value,
+          passedWaypointIndex.value,
+          currentSpeed.value
+        );
+      }
+    } catch (error) {
+      console.warn('Navigation update error:', error);
+      stopNavigation();
+      $q.notify({ type: 'negative', message: 'Navigation stopped due to error', position: 'top' });
     }
-  }
-});
+  }, delayMs);
+}
 
 async function startNavigation() {
-  if (!gpsConnected.value) {
-    console.log("GPS2IP is not connected");
-    $q.dialog({
-      title: "Error",
-      message: "GPS2IP is not connected. Please check your connection.",
-      persistent: true,
-      ok: { label: "OK", flat: true },
-    });
-    isNavigating.value = false;
-    localStorage.setItem("isNavigating", false);
+  zoom.value = 15;
+  if (!CF.isLiveDataFresh()) {
+    $q.dialog({ title: 'Sensor Error', message: 'Stale GPS data', persistent: true });
     return false;
   }
-  let initialPos;
-  try {
-    initialPos = await CF.get_current_location();
-    if (!initialPos) {
-      $q.dialog({
-        title: "Error",
-        message: "No GPS data available.",
-        persistent: true,
-        ok: { label: "OK", flat: true },
-      });
-      isNavigating.value = false;
-      localStorage.setItem("isNavigating", false);
-      return false;
-    }
-  } catch (err) {
-    $q.dialog({
-      title: "Error",
-      message: "Could not get GPS position. Please check your GPS2IP connection.",
-      persistent: true,
-      ok: { label: "OK", flat: true },
-    });
-    isNavigating.value = false;
-    localStorage.setItem("isNavigating", false);
+
+  const pos = await CF.getLiveData('coordinates');
+  if (!pos) {
+    $q.dialog({ title: 'GPS Error', message: 'No GPS position', persistent: true });
     return false;
   }
-  const plannedSpeed = localStorage.getItem("plannedSpeed");
+
+  const plannedSpeed = localStorage.getItem('plannedSpeed');
   if (!plannedSpeed) {
-    $q.dialog({
-      title: "Error",
-      message: "Please set planned speed in settings before starting navigation.",
-      persistent: true,
-      ok: { label: "OK", flat: true },
-    });
-    isNavigating.value = false;
-    localStorage.setItem("isNavigating", false);
+    $q.dialog({ title: 'Missing Speed', message: 'Set a planned speed in settings.', persistent: true });
     return false;
   }
-  currentBoatPos.value = initialPos;
-  prevPos = currentBoatPos.value;
-  prevTime = CF.convert_unit("to-seconds", CF.get_time());
-  const useCurrentTime = localStorage.getItem("useCurrentTime") === "true";
-  if (useCurrentTime) {
-    plannedStartTime.value = CF.get_time();
-  } else {
-    const savedTime = localStorage.getItem("plannedTime");
-    if (!savedTime) {
-      $q.dialog({
-        title: "Error",
-        message: "Please set planned time in settings before starting navigation.",
-        persistent: true,
-        ok: { label: "OK", flat: true },
-      });
-      isNavigating.value = false;
-      localStorage.setItem("isNavigating", false);
-      return false;
-    }
-    plannedStartTime.value = parseTimeString(savedTime);
-  }
+
+  currentBoatPos.value = pos;
+  prevPos = pos;
+  prevTime = CF.convert_unit('to-seconds', CF.get_time());
+
+  const useNow = localStorage.getItem('useCurrentTime') === 'true';
+  plannedStartTime.value = useNow
+    ? CF.get_time()
+    : parseTimeString(localStorage.getItem('plannedTime') || formatTime(CF.get_time()));
+
   etaList.value = await CF.get_eta_for_waypoints(plannedStartTime.value, Number(plannedSpeed));
-  localStorage.setItem("waypointsETA", JSON.stringify(etaList.value));
+  localStorage.setItem('waypointsETA', JSON.stringify(etaList.value));
   initializeNavigation();
   return true;
 }
@@ -487,68 +365,81 @@ function stopNavigation() {
   estimatedDelay.value = null;
   throttleValue.value = 0;
   etaList.value = [];
-  localStorage.removeItem("waypointsETA");
-  isNavigating.value = false;
-  localStorage.setItem("isNavigating", false);
 }
 
 async function toggleNavigation() {
   if (!isNavigating.value) {
-    if (!gpsConnected.value) {
-      console.log("GPS2IP is not connected");
-      $q.dialog({
-        title: "Error",
-        message: "GPS2IP is not connected. Please check your connection.",
-        persistent: true,
-        ok: { label: "OK", flat: true },
-      });
-      return;
-    }
-  }
-  isNavigating.value = !isNavigating.value;
-  localStorage.setItem("isNavigating", isNavigating.value);
-  if (isNavigating.value) {
     passedWaypointIndex.value = 0;
-    waypointSwitching.value = false;
-    estimatedDelay.value = null;
-    throttleValue.value = 0;
-    currentSpeed.value = 0;
-    currentBearing.value = 0;
-    const success = await startNavigation();
-    if (success) {
-      $q.notify({
-        type: "positive",
-        message: "Navigation started",
-        position: "top",
-        timeout: 2000,
-      });
+    if (await startNavigation()) {
+      setNavigationState(true);
+      $q.notify({ type: 'positive', message: 'Navigation started', position: 'top' });
     }
   } else {
     stopNavigation();
-    $q.notify({
-      type: "warning",
-      message: "Navigation stopped",
-      position: "top",
-      timeout: 2000,
-    });
+    setNavigationState(false);
+    $q.notify({ type: 'warning', message: 'Navigation stopped', position: 'top' });
   }
 }
 
-watch(gpsConnected, (connected) => {
-  if (!connected && isNavigating.value) {
-    stopNavigation();
-    $q.dialog({
-      title: "GPS2IP Disconnected",
-      message: "GPS2IP connection lost. Navigation has been stopped. (Index watcher)",
-      persistent: true,
-      ok: { label: "OK", flat: true },
-    });
+onMounted(async () => {
+  console.log(CF.get_bearing([0, 0], [0, 1])); // Should be ~90 (east)
+  console.log(CF.get_bearing([0, 0], [1, 0])); // Should be ~0 (north)
+  console.log(CF.get_bearing([0, 0], [-1, 0])); // Should be ~180 (south)
+  console.log(CF.get_bearing([0, 0], [0, -1])); // Should be ~270 (west)
+
+  currentGPXFile.value = (localStorage.getItem('currentGPXFileName') || '').replace('.gpx', '');
+
+  const coords = await CF.get_route_coordinates();
+  if (!coords.length) return;
+
+  routeCoordinates.value = coords;
+  center.value = CF.calculateRouteMidpoint(coords);
+  passedWaypointIndex.value = 0;
+
+  await nextTick();
+
+  // if (mapRef.value?.mapObject) {
+  //   const bounds = L.latLngBounds(coords);
+  //   mapRef.value.mapObject.fitBounds(bounds, { padding: [50, 50] });
+  // }
+
+  if (isNavigating.value) {
+    // Load previously saved ETA list
+    const storedETA = localStorage.getItem('waypointsETA');
+    if (storedETA) {
+      try {
+        etaList.value = JSON.parse(storedETA);
+      } catch (e) {
+        console.warn('Failed to parse ETA list from localStorage:', e);
+        etaList.value = [];
+      }
+    }
+
+    // Restore planned start time
+    const useNow = localStorage.getItem('useCurrentTime') === 'true';
+    plannedStartTime.value = useNow
+      ? CF.get_time()
+      : parseTimeString(localStorage.getItem('plannedTime') || formatTime(CF.get_time()));
+
+    currentBoatPos.value = await CF.getLiveData('coordinates');
+    prevPos = currentBoatPos.value;
+    prevTime = CF.convert_unit('to-seconds', CF.get_time());
+
+    // Only start if all required data is present
+    if (etaList.value.length && routeCoordinates.value.length && plannedStartTime.value) {
+      await initializeNavigation();
+    } else {
+      console.warn('Navigation was restored but ETA or route is missing.');
+    }
   }
 });
 
+
 onBeforeUnmount(() => {
+  stopNavigation();
 });
 </script>
+
 
 <style>
 .map-container {

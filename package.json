@@ -27,7 +27,7 @@
     "vue": "^3.4.18",
     "vue-router": "^4.0.0",
     "vue3-leaflet": "^1.0.50",
-    "ws": "^8.18.1",
+    "ws": "^8.18.3",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {

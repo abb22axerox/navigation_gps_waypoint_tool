@@ -30,20 +30,20 @@
               class="q-mb-sm"
             >
               <template v-slot:avatar>
-                <q-icon :name="isNavigating ? 'navigation' : 'gps_off'" />
+                <q-icon :name="isNavigating ? 'navigation' : 'close'" />
               </template>
               {{ isNavigating ? "Navigating" : "Not Navigating" }}
             </q-banner>
-            <!-- GPS2IP Connection Status -->
+            <!-- Sensor Data Status -->
             <q-banner
-              :class="gpsConnected ? 'bg-green-1 text-green' : 'bg-red-1 text-red'"
+              :class="sensorStatus ? 'bg-green-1 text-green' : 'bg-red-1 text-red'"
               rounded
             >
               <template v-slot:avatar>
-                <q-icon :name="gpsConnected ? 'wifi' : 'wifi_off'" />
+                <q-icon :name="sensorStatus ? 'gps_fixed' : 'gps_off'" />
               </template>
               <div class="column">
-                {{ gpsConnected ? "GPS2IP Connected" : "GPS2IP Not Connected" }}
+                {{ sensorStatus ? "Phone GPS Connected " : "Phone GPS Not Connected" }}
               </div>
             </q-banner>
           </q-card-section>
@@ -97,7 +97,7 @@
                   <td class="text-left text-weight-medium">{{ index + 1 }}</td>
                   <td class="text-left">{{ CF.formatCoordinates(item[0]) }}</td>
                   <td class="text-left text-primary">
-                    {{ formatTimeArray(item[1]) }}
+                  {{ item[1] ? formatTimeArray(item[1]) : '—' }}
                   </td>
                 </tr>
               </tbody>
@@ -110,18 +110,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from "vue";
+import { ref, onMounted, watch } from "vue";
 import * as CF from "src/utils/calculation_functions";
-import { gpsConnected, gpsListener } from "src/boot/gps-listener";
+import { liveGpsData } from "src/boot/live-gps";
+import { isLiveDataFresh } from "src/utils/calculation_functions";
 
 const waypoints = ref([]);
 const isNavigating = ref(localStorage.getItem("isNavigating") === "true");
 const plannedSpeed = ref(0);
-const gpsError = ref(null);
-
 const totalDistance = ref(0);
 const startTime = ref("--:--:--");
 const endTime = ref("--:--:--");
+const sensorStatus = ref(isLiveDataFresh());
+
+setInterval(() => {
+  sensorStatus.value = isLiveDataFresh();
+}, 100);
 
 function formatTimeArray(timeArray) {
   if (!Array.isArray(timeArray)) return timeArray;
@@ -151,22 +155,27 @@ async function calculateRouteDetails() {
       } else if (savedTime) {
         startTime.value = savedTime;
       }
+      waypoints.value = coordinates.map((coord) => [coord, null]);
 
-      const savedETA = localStorage.getItem("waypointsETA");
-      if (savedETA) {
-        const eta = JSON.parse(savedETA);
-        endTime.value = formatTimeArray(eta[eta.length - 1][1]);
-        waypoints.value = coordinates.map((coord, index) => [coord, eta[index][1]]);
-      } else if (plannedSpeedValue && coordinates.length) {
-        const startTimeArray = useCurrentTime ? CF.get_time() : parseTimeString(savedTime);
-        const eta = await CF.get_eta_for_waypoints(startTimeArray, Number(plannedSpeedValue));
-        if (eta.length) {
+      if (isNavigating.value) {
+        const savedETA = localStorage.getItem("waypointsETA");
+        if (savedETA) {
+          const eta = JSON.parse(savedETA);
           endTime.value = formatTimeArray(eta[eta.length - 1][1]);
           waypoints.value = coordinates.map((coord, index) => [coord, eta[index][1]]);
+        } else if (plannedSpeedValue && coordinates.length) {
+          const startTimeArray = useCurrentTime ? CF.get_time() : parseTimeString(savedTime);
+          const eta = await CF.get_eta_for_waypoints(startTimeArray, Number(plannedSpeedValue));
+          if (eta.length) {
+            endTime.value = formatTimeArray(eta[eta.length - 1][1]);
+            waypoints.value = coordinates.map((coord, index) => [coord, eta[index][1]]);
+          }
         }
       }
+
     }
-  } catch (error) {
+  }
+  catch (error) {
     console.error("Error calculating route details:", error);
   }
 }
@@ -177,10 +186,7 @@ watch(() => localStorage.getItem("isNavigating"), (newValue) => {
 
 onMounted(() => {
   isNavigating.value = localStorage.getItem("isNavigating") === "true";
-  calculateRouteDetails();
-});
-
-onBeforeUnmount(() => {
+    calculateRouteDetails();
 });
 </script>
 

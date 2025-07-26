@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import { gpsListener, latestPosition} from "src/boot/gps-listener";
+import { liveGpsData, lastGpsUpdate } from "src/boot/live-gps";
 
 export function get_time() {
   let now = new Date();
@@ -9,6 +9,77 @@ export function get_time() {
     now.getSeconds(),
     now.getMilliseconds(),
   ];
+}
+
+export function isLiveDataFresh(thresholdSeconds = 2) {
+  if (!liveGpsData.value) return false;
+  const now = Date.now();
+  return (now - lastGpsUpdate.value) <= thresholdSeconds * 1000;
+}
+
+export async function getLiveData(type) {
+  // Wait until liveGpsData is available
+  const waitForData = () => new Promise((resolve) => {
+    const stop = setInterval(() => {
+      if (liveGpsData.value) {
+        clearInterval(stop);
+        resolve(liveGpsData.value);
+      }
+    }, 100);
+  });
+
+  const data = liveGpsData.value || await waitForData();
+
+  switch (type) {
+    case "coordinates":
+      if (data.lat !== undefined && data.lon !== undefined) {
+        return [parseFloat(data.lat), parseFloat(data.lon)];
+      }
+      return null;
+
+    case "speed":
+      if (data.speed !== undefined) {
+        // SensorLog speed is in m/s, convert to knots
+        return parseFloat(data.speed) * 1.94384;
+      }
+      return null;
+
+    case "course":
+      if (data.course !== undefined) {
+        // Some SensorLog data uses -1 for invalid course
+        const course = parseFloat(data.course);
+        return course >= 0 ? course : null;
+      }
+      return null;
+
+    case "altitude":
+      if (data.altitude !== undefined) {
+        return parseFloat(data.altitude);
+      }
+      return null;
+
+    case "time":
+      if (data.time !== undefined) {
+        // Return as string or parse as needed
+        return data.time;
+      }
+      return null;
+
+    case "device_id":
+      if (data.device_id !== undefined) {
+        return data.device_id;
+      }
+      return null;
+
+    case "battery_level":
+      if (data.battery_level !== undefined) {
+        return parseFloat(data.battery_level);
+      }
+      return null;
+
+    default:
+      return null;
+  }
 }
 
 export async function get_route_coordinates(index = null) {
@@ -160,94 +231,61 @@ export async function get_eta_for_waypoints(
 }
 
 export async function get_estimated_delay(eta_list, waypoint_index, current_speed) {
-  let route = await get_route_coordinates();
-  let current_location = await get_current_location();
+  const route = await get_route_coordinates();
+  const current_location = await getLiveData("coordinates");
+  const next_waypoint = route[waypoint_index];
 
-  // Remove unused planned_start_time
-  let planned_eta = convert_unit("to-seconds", eta_list[waypoint_index][1]);
-  let remaining_distance = get_2point_route_distance(
-    current_location,
-    route[waypoint_index]
-  );
+  // 1. Remaining distance in NM
+  const remaining_distance = get_2point_route_distance(current_location, next_waypoint);
 
-  // Calculate the current time difference from planned ETA
-  const current_time = convert_unit("to-seconds", get_time());
-  const raw_delay = current_time - planned_eta;  // raw delay (in seconds; positive if late)
-  const delay = Math.abs(raw_delay);
-  const formatted_delay = convert_unit("format-seconds", delay);
-  let is_delay_positive = raw_delay > 0;
-  let throttle_alert;
-  if (current_speed === 0) {
-    throttle_alert = is_delay_positive ? 1 : -1;
+  // 2. Planned ETA (seconds)
+  const planned_eta_seconds = convert_unit("to-seconds", eta_list[waypoint_index][1]);
+
+  // 3. Predict arrival time at current speed
+  let predicted_eta_seconds;
+  if (current_speed > 0.1) {
+    const now_seconds = convert_unit("to-seconds", get_time());
+    const travel_time = (remaining_distance / current_speed) * 3600;
+    predicted_eta_seconds = now_seconds + travel_time;
   } else {
-    // Scale the throttle value more gradually
-    // Use a smaller threshold for fine control
-    const fine_threshold = 10; // 10 seconds for fine control
-    const coarse_threshold = 300; // 5 minutes for max throttle
+    predicted_eta_seconds = Infinity;
+  }
 
-    if (delay <= fine_threshold) {
-      // Fine control for small delays (0-10 seconds)
-      throttle_alert = (delay / fine_threshold) * 0.5 * (is_delay_positive ? 1 : -1);
+  // 4. Compute raw_delay (force to 0 if predicted ETA is infinite)
+  let raw_delay;
+  if (!isFinite(predicted_eta_seconds)) {
+    raw_delay = 0;
+  } else {
+    raw_delay = predicted_eta_seconds - planned_eta_seconds;  // +ve = late, –ve = early
+  }
+
+  const is_late = raw_delay > 0;
+  const delay_abs = Math.abs(raw_delay);
+  const formatted_delay = convert_unit("format-seconds", delay_abs);
+
+  // 5. Throttle suggestion
+  let throttle_alert;
+  if (current_speed < 0.1) {
+    throttle_alert = is_late ? 1 : -1;
+  } else {
+    const fine = 10, coarse = 300;
+    if (delay_abs <= fine) {
+      throttle_alert = (delay_abs / fine) * 0.5 * (is_late ? -1 : 1);
     } else {
-      // Coarse control for larger delays
-      throttle_alert = (Math.min(delay, coarse_threshold) / coarse_threshold) * (is_delay_positive ? 1 : -1);
+      throttle_alert = (Math.min(delay_abs, coarse) / coarse) * (is_late ? -1 : 1);
     }
   }
 
-  return [remaining_distance, delay, formatted_delay, is_delay_positive, throttle_alert];
+  // ─── Return in [distance, rawDelay, formattedDelay, isLate, throttle] ───
+  return [
+    remaining_distance,  // [0]
+    raw_delay,           // [1] now 0 if predicted ETA was Infinity
+    formatted_delay,     // [2]
+    is_late,             // [3]
+    throttle_alert       // [4]
+  ];
 }
 
-export async function get_current_location() {
-  if (latestPosition.value) {
-    return latestPosition.value;
-  }
-  // Otherwise, wait for the next location event.
-  return new Promise((resolve, reject) => {
-    const onLocation = (coords) => resolve(coords)
-    const onError = (err) => reject(err)
-    // Listen for the next valid location
-    import("src/boot/gps-listener").then(({ gpsListener }) => {
-      gpsListener.once('location', onLocation)
-      gpsListener.once('error', onError)
-    })
-  })
-}
-
-// export function updateSpeed(prevPos, prevTime, newPos, currentTime) {
-//   const distance = get_2point_route_distance(prevPos, newPos);
-//   const timeDiff = (currentTime - prevTime) / 3600;
-//   return timeDiff > 0 ? distance / timeDiff : 0;
-// }
-
-const speedHistory = [];
-
-export function updateSpeed(prevPos, prevTime, newPos, currentTime) {
-  // Calculate distance in nautical miles
-  const distance = get_2point_route_distance(prevPos, newPos);
-  // Calculate time difference in hours
-  const timeDiff = (currentTime - prevTime) / 3600;
-
-  // Ignore if timeDiff is too small or zero
-  if (timeDiff < 0.5 / 3600) return speedHistory.length ? average(speedHistory) : 0;
-
-  // Calculate speed in knots
-  let speed = timeDiff > 0 ? distance / timeDiff : 0;
-
-  // Ignore unrealistic jumps (e.g., > 20 knots)
-  if (speed > 20 || speed < 0) {
-    speed = speedHistory.length ? average(speedHistory) : 0;
-  }
-
-  // Add to history and keep last 5 values
-  speedHistory.push(speed);
-  if (speedHistory.length > 5) speedHistory.shift();
-
-  return average(speedHistory);
-}
-
-function average(arr) {
-  return arr.reduce((a, b) => a + b, 0) / arr.length;
-}
 
 export function formatCoordinates(coords) {
   if (!Array.isArray(coords)) return coords;
@@ -299,8 +337,8 @@ export function calculateRouteMidpoint(coordinates) {
 }
 
 export async function calculate_dot_product(passed_waypoint, next_waypoint) {
-  // Get the current GPS location
-  const current = await get_current_location(); // returns [lat, lon]
+  const currentPos = await getLiveData("coordinates");
+  if (!currentPos) return false;
 
   // Create a vector representing the route's direction from the passed waypoint to the next waypoint.
   const direction = [
@@ -310,8 +348,8 @@ export async function calculate_dot_product(passed_waypoint, next_waypoint) {
 
   // Create a vector from the passed waypoint to the current location.
   const toCurrent = [
-    current[0] - passed_waypoint[0],
-    current[1] - passed_waypoint[1],
+    currentPos[0] - passed_waypoint[0],
+    currentPos[1] - passed_waypoint[1],
   ];
 
   // Calculate dot product between the two vectors.
