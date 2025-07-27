@@ -9,7 +9,7 @@ export function setupLiveGpsWebSocket() {
   socket.onmessage = (event) => {
     liveGpsData.value = JSON.parse(event.data);
     lastGpsUpdate.value = Date.now(); // <-- update timestamp on every message
-    console.log("Received GPS data:", liveGpsData.value);
+    // console.log("Received GPS data:", liveGpsData.value);
   };
   socket.onerror = (err) => console.error("WebSocket error:", err);
 }

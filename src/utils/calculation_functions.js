@@ -52,6 +52,14 @@ export async function getLiveData(type) {
       }
       return null;
 
+    case "trueHeading":
+      if (data.trueHeading !== undefined) {
+        // Some SensorLog data uses -1 for invalid course
+        const trueHeading = parseFloat(data.trueHeading);
+        return trueHeading >= 0 ? trueHeading : null;
+      }
+      return null;
+
     case "altitude":
       if (data.altitude !== undefined) {
         return parseFloat(data.altitude);
@@ -73,7 +81,7 @@ export async function getLiveData(type) {
 
     case "battery_level":
       if (data.battery_level !== undefined) {
-        return parseFloat(data.battery_level);
+        return parseFloat(data.battery_level) * 100; // ← Multiply by 100
       }
       return null;
 
@@ -84,7 +92,7 @@ export async function getLiveData(type) {
 
 export async function get_route_coordinates(index = null) {
   try {
-    // Get GPX data from localStorage
+    // Get raw GPX XML from localStorage
     const data = localStorage.getItem("currentGPXFile");
     if (!data) {
       throw new Error("No GPX file loaded. Please upload a route first.");
@@ -92,43 +100,66 @@ export async function get_route_coordinates(index = null) {
 
     const parser = new XMLParser({
       ignoreAttributes: false,
-      attributeNamePrefix: "", // This removes the @ prefix
+      attributeNamePrefix: "", // Remove the '@' prefix
     });
+    const parsed = parser.parse(data);
+    const route = [];
+    let prevWaypoint = null;
 
-    let parsedResult = parser.parse(data);
-
-    let route = [];
-    let prev_waypoint = null;
-
-    if (
-      parsedResult &&
-      parsedResult.gpx &&
-      parsedResult.gpx.rte &&
-      parsedResult.gpx.rte.rtept
-    ) {
-      parsedResult.gpx.rte.rtept.forEach((rtept) => {
-        let lat = parseFloat(rtept["lat"]);
-        let lon = parseFloat(rtept["lon"]);
-        let waypoint = [lat, lon];
-
+    // Utility to append unique points
+    function addPoints(ptArray) {
+      ptArray.forEach((pt) => {
+        const lat = parseFloat(pt.lat ?? pt['@lat']);
+        const lon = parseFloat(pt.lon ?? pt['@lon']);
+        if (isNaN(lat) || isNaN(lon)) return;
+        const wp = [lat, lon];
         if (
-          prev_waypoint === null ||
-          waypoint[0] !== prev_waypoint[0] ||
-          waypoint[1] !== prev_waypoint[1]
+          !prevWaypoint ||
+          wp[0] !== prevWaypoint[0] ||
+          wp[1] !== prevWaypoint[1]
         ) {
-          route.push(waypoint);
-          prev_waypoint = waypoint;
+          route.push(wp);
+          prevWaypoint = wp;
         }
       });
     }
 
+    // 1️⃣ Handle <rte><rtept>
+    if (
+      parsed.gpx?.rte?.rtept
+    ) {
+      const rtepts = Array.isArray(parsed.gpx.rte.rtept)
+        ? parsed.gpx.rte.rtept
+        : [parsed.gpx.rte.rtept];
+      addPoints(rtepts);
+    }
+
+    // 2️⃣ Handle <trk><trkseg><trkpt>
+    if (parsed.gpx?.trk) {
+      const trks = Array.isArray(parsed.gpx.trk)
+        ? parsed.gpx.trk
+        : [parsed.gpx.trk];
+      trks.forEach((trk) => {
+        const segs = Array.isArray(trk.trkseg)
+          ? trk.trkseg
+          : [trk.trkseg];
+        segs.forEach((seg) => {
+          if (!seg.trkpt) return;
+          const trkpts = Array.isArray(seg.trkpt)
+            ? seg.trkpt
+            : [seg.trkpt];
+          addPoints(trkpts);
+        });
+      });
+    }
+
     if (!route.length) {
-      console.log("Warning: No route points found in GPX file.");
+      console.warn("Warning: No route points found in GPX file.");
     }
 
     return index !== null ? route[index] : route;
-  } catch (e) {
-    console.log("Error reading GPX file:", e);
+  } catch (err) {
+    console.error("Error reading GPX file:", err);
     return [];
   }
 }
@@ -264,17 +295,14 @@ export async function get_estimated_delay(eta_list, waypoint_index, current_spee
   const formatted_delay = convert_unit("format-seconds", delay_abs);
 
   // 5. Throttle suggestion
-  let throttle_alert;
-  if (current_speed < 0.1) {
-    throttle_alert = is_late ? 1 : -1;
-  } else {
-    const fine = 10, coarse = 300;
-    if (delay_abs <= fine) {
-      throttle_alert = (delay_abs / fine) * 0.5 * (is_late ? -1 : 1);
-    } else {
-      throttle_alert = (Math.min(delay_abs, coarse) / coarse) * (is_late ? -1 : 1);
-    }
-  }
+  const coarse = 300;
+  const exponent = 0.3; // Updated exponent for 0.7 at 15 sec
+
+  const clamped_delay = Math.min(delay_abs, coarse);
+  const scaled = Math.pow(clamped_delay / coarse, exponent);
+  let throttle_alert = scaled * (is_late ? 1 : -1);
+
+  // console.log(raw_delay, formatted_delay, is_late, throttle_alert);
 
   // ─── Return in [distance, rawDelay, formattedDelay, isLate, throttle] ───
   return [
@@ -285,7 +313,6 @@ export async function get_estimated_delay(eta_list, waypoint_index, current_spee
     throttle_alert       // [4]
   ];
 }
-
 
 export function formatCoordinates(coords) {
   if (!Array.isArray(coords)) return coords;
@@ -306,23 +333,6 @@ export function formatCoordinates(coords) {
   return `${formatLatLon(lat, true)}, ${formatLatLon(lon, false)}`;
 }
 
-export function get_bearing(coord1, coord2) {
-  // Convert latitudes/longitudes to radians
-  const lat1 = (coord1[0] * Math.PI) / 180;
-  const lat2 = (coord2[0] * Math.PI) / 180;
-  const deltaLon = ((coord2[1] - coord1[1]) * Math.PI) / 180;
-
-  // Calculate bearing using the haversine formula components
-  const y = Math.sin(deltaLon) * Math.cos(lat2);
-  const x =
-    Math.cos(lat1) * Math.sin(lat2) -
-    Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
-  const brng = (Math.atan2(y, x) * 180) / Math.PI;
-
-  // Ensure the bearing is normalized to 0-360 degrees
-  return (brng + 360) % 360;
-}
-
 // Add this new function to your calculation_functions.js
 export function calculateRouteMidpoint(coordinates) {
   if (!coordinates || coordinates.length === 0) {
@@ -336,27 +346,88 @@ export function calculateRouteMidpoint(coordinates) {
   return [sumLat / coordinates.length, sumLng / coordinates.length];
 }
 
-export async function calculate_dot_product(passed_waypoint, next_waypoint) {
+// Helper functions for equirectangular projection
+const R = 6371000;
+const toRad = (deg) => deg * Math.PI / 180;
+const toDeg = (rad) => rad * 180 / Math.PI;
+function projectToXY([lat, lon], refLat, refLon) {
+  const lat0 = toRad(refLat);
+  return {
+    x: (toRad(lon - refLon)) * R * Math.cos(lat0),
+    y: (toRad(lat - refLat)) * R,
+  };
+}
+function projectToLatLon({ x, y }, refLat, refLon) {
+  const lat = refLat + toDeg(y / R);
+  const lon = refLon + toDeg(x / (R * Math.cos(toRad(refLat))));
+  return [lat, lon];
+}
+
+/**
+ * Returns a cutline (angle bisector) through p2 between segments p1->p2 and p2->p3,
+ * extended symmetrically by `extension` meters.
+ */
+export function get_crossing_outline(p1, p2, p3, extension = 50) {
+  // Project p1, p2, p3 to local XY with p2 as origin
+  const A = projectToXY(p1, p2[0], p2[1]);
+  const B = projectToXY(p3, p2[0], p2[1]);
+  // Vectors from p2
+  const v1 = { x: -A.x, y: -A.y };
+  const v2 = { x: B.x, y: B.y };
+  const n1 = Math.hypot(v1.x, v1.y);
+  const n2 = Math.hypot(v2.x, v2.y);
+  if (n1 === 0 || n2 === 0) return null;
+  // Unit vectors
+  const u1 = { x: v1.x / n1, y: v1.y / n1 };
+  const u2 = { x: v2.x / n2, y: v2.y / n2 };
+  // Bisector direction
+  const bis = { x: u1.x + u2.x, y: u1.y + u2.y };
+  const bisLen = Math.hypot(bis.x, bis.y);
+  if (bisLen === 0) return null;
+  const bisUnit = { x: bis.x / bisLen, y: bis.y / bisLen };
+    // Cutting direction: perpendicular to the bisector
+  const cutDir = { x: -bisUnit.y, y: bisUnit.x };
+
+  // Extended endpoints around p2 along cutDir
+  const E1 = { x: cutDir.x * extension, y: cutDir.y * extension };
+  const E2 = { x: -cutDir.x * extension, y: -cutDir.y * extension };
+
+  return [
+    projectToLatLon(E1, p2[0], p2[1]),
+    projectToLatLon(E2, p2[0], p2[1])
+  ];
+}
+
+/**
+ * Checks which side of the bisector cutline the boat is on.
+ * Returns { side, cutLine }:
+ *  - side > 0 means one side, < 0 the other;
+ *  - cutLine is the two endpoints for drawing.
+ */
+export async function check_crossing_status(p1, p2, p3, extension = 50) {
   const currentPos = await getLiveData("coordinates");
-  if (!currentPos) return false;
+  if (!currentPos) return { dot: null, cutLine: null };
 
-  // Create a vector representing the route's direction from the passed waypoint to the next waypoint.
-  const direction = [
-    next_waypoint[0] - passed_waypoint[0],
-    next_waypoint[1] - passed_waypoint[1],
-  ];
+  const cutLine = get_crossing_outline(p1, p2, p3, extension);
+  if (!cutLine) return { dot: null, cutLine: null };
 
-  // Create a vector from the passed waypoint to the current location.
-  const toCurrent = [
-    currentPos[0] - passed_waypoint[0],
-    currentPos[1] - passed_waypoint[1],
-  ];
+  // Recompute bisector vector in XY
+  const A = projectToXY(p1, p2[0], p2[1]);
+  const B = projectToXY(p3, p2[0], p2[1]);
+  const v1 = { x: -A.x, y: -A.y };
+  const v2 = { x: B.x, y: B.y };
+  const n1 = Math.hypot(v1.x, v1.y);
+  const n2 = Math.hypot(v2.x, v2.y);
+  const u1 = { x: v1.x / n1, y: v1.y / n1 };
+  const u2 = { x: v2.x / n2, y: v2.y / n2 };
+  const bis = { x: u1.x + u2.x, y: u1.y + u2.y };
+  const bisLen = Math.hypot(bis.x, bis.y);
+  const bisUnit = { x: bis.x / bisLen, y: bis.y / bisLen };
 
-  // Calculate dot product between the two vectors.
-  const dot = direction[0] * toCurrent[0] + direction[1] * toCurrent[1];
+  const boatXY = projectToXY(currentPos, p2[0], p2[1]);
+  const dot = boatXY.x * bisUnit.x + boatXY.y * bisUnit.y;
 
-  // If dot product is positive, the current location is "past" the passed waypoint.
-  return dot > 0;
+  return { dot, cutLine };
 }
 
 // Add proper error handling for async operations

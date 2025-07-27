@@ -36,6 +36,22 @@
               </template>
             </q-input>
 
+            <!-- Crossing Extension Input -->
+            <q-input
+              class="q-mb-md"
+              filled
+              v-model.number="crossingExtension"
+              label="Crossing Extension (meters)"
+              stack-label
+              :dense="dense"
+              type="number"
+              @update:model-value="handleCrossingExtensionUpdate"
+            >
+              <template v-slot:append>
+                <q-icon name="swap_horiz" color="primary" />
+              </template>
+            </q-input>
+
             <!-- Time Input -->
             <q-input
               class="q-mb-sm"
@@ -105,8 +121,8 @@
               <div class="column">
                 <div>To start the GPS bridge server:</div>
                 <code class="q-mt-sm">
-                  1. Open terminal<br>
-                  2. Navigate to project root<br>
+                  1. Open terminal<br />
+                  2. Navigate to project root<br />
                   3. Run: node src/boot/sensorlog-server-tcp.js
                 </code>
               </div>
@@ -134,7 +150,12 @@
                 <q-icon name="upload_file" color="primary" @click.stop.prevent />
               </template>
               <template v-slot:append>
-                <q-icon name="close" color="primary" @click.stop.prevent="clearFile" class="cursor-pointer" />
+                <q-icon
+                  name="close"
+                  color="primary"
+                  @click.stop.prevent="clearFile"
+                  class="cursor-pointer"
+                />
               </template>
               <template v-slot:hint>
                 Select a GPX file to load route waypoints
@@ -165,6 +186,7 @@ const gpxFile = ref(null);
 const error = ref(null);
 const displayFileName = ref("");
 const plannedSpeed = ref(0);
+const crossingExtension = ref(50); // default 50 meters
 const dense = ref(true);
 const plannedTime = ref("");
 const useCurrentTime = ref(false);
@@ -227,14 +249,42 @@ function handleSpeedUpdate(value) {
     });
     return;
   } else {
+    localStorage.setItem("plannedSpeed", value);
     $q.notify({
       type: "positive",
       message: "Speed updated successfully",
       position: "top",
       timeout: 2000,
     });
-    localStorage.setItem("plannedSpeed", value);
   }
+}
+
+function handleCrossingExtensionUpdate(value) {
+  if (value < 0) {
+    $q.notify({
+      type: "negative",
+      message: "Crossing extension cannot be negative",
+      position: "top",
+      timeout: 2000,
+    });
+    return;
+  }
+  if (value === 0) {
+    $q.notify({
+      type: "negative",
+      message: "Crossing extension cannot be zero",
+      position: "top",
+      timeout: 2000,
+    });
+    return;
+  }
+  localStorage.setItem("crossing_extension", value);
+  $q.notify({
+    type: "positive",
+    message: "Crossing extension updated successfully",
+    position: "top",
+    timeout: 2000,
+  });
 }
 
 function handleManualTimeUpdate(value) {
@@ -289,6 +339,10 @@ onMounted(() => {
   if (savedSpeed) {
     plannedSpeed.value = Number(savedSpeed);
   }
+  const savedCrossingExtension = localStorage.getItem("crossing_extension");
+  if (savedCrossingExtension) {
+    crossingExtension.value = Number(savedCrossingExtension);
+  }
   const savedTime = localStorage.getItem("plannedTime");
   if (savedTime) {
     plannedTime.value = savedTime;
@@ -312,24 +366,16 @@ onMounted(() => {
   }
   const savedUpdateFrequency = localStorage.getItem("updateFrequency");
   if (savedUpdateFrequency) {
-    const period = Number(savedUpdateFrequency);
-    if (period > 0) {
-      updateFrequencyHz.value = 1 / period;
-    }
+    updateFrequencyHz.value = Number((1 / Number(savedUpdateFrequency)).toFixed(2));
   }
 });
 </script>
 
 <style scoped>
 .page-header {
-  background: linear-gradient(to right, rgba(25, 118, 210, 0.05), transparent);
-  padding: 1.5rem;
-  border-radius: 8px;
+  border-bottom: 1px solid #e0e0e0;
 }
 .settings-card {
-  transition: box-shadow 0.3s ease;
-}
-.settings-card:hover {
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  background-color: white;
 }
 </style>

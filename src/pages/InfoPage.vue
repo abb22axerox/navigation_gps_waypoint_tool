@@ -23,7 +23,6 @@
         <q-card flat bordered class="q-pa-md q-mb-md shadow-2 rounded">
           <q-card-section>
             <div class="text-h6 q-mb-md">Status</div>
-            <!-- Navigation Status -->
             <q-banner
               :class="isNavigating ? 'bg-green-1 text-green' : 'bg-orange-1 text-orange'"
               rounded
@@ -34,7 +33,6 @@
               </template>
               {{ isNavigating ? "Navigating" : "Not Navigating" }}
             </q-banner>
-            <!-- Sensor Data Status -->
             <q-banner
               :class="sensorStatus ? 'bg-green-1 text-green' : 'bg-red-1 text-red'"
               rounded
@@ -43,7 +41,7 @@
                 <q-icon :name="sensorStatus ? 'gps_fixed' : 'gps_off'" />
               </template>
               <div class="column">
-                {{ sensorStatus ? "Phone GPS Connected " : "Phone GPS Not Connected" }}
+                {{ sensorStatus ? "Connected to " + deviceID : "Phone GPS Not Connected" }}
               </div>
             </q-banner>
           </q-card-section>
@@ -90,14 +88,34 @@
                   <th>Waypoint</th>
                   <th>Coordinate</th>
                   <th>Estimated Time of Arrival</th>
+                  <th>Speed (kn)</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(item, index) in waypoints" :key="index">
+                <tr
+                  v-for="(item, index) in waypoints"
+                  :key="index"
+                >
                   <td class="text-left text-weight-medium">{{ index + 1 }}</td>
-                  <td class="text-left">{{ CF.formatCoordinates(item[0]) }}</td>
+                  <td class="text-left">{{ CF.formatCoordinates(item.coord) }}</td>
                   <td class="text-left text-primary">
-                  {{ item[1] ? formatTimeArray(item[1]) : '—' }}
+                    {{ item.eta ? formatTimeArray(item.eta) : '—' }}
+                  </td>
+                  <td
+                    v-if="index < waypoints.length - 1"
+                    :rowspan="2"
+                    class="bg-grey-2 text-center"
+                    style="vertical-align: middle;"
+                  >
+                    <q-input
+                      v-model.number="waypoints[index].speed"
+                      type="number"
+                      dense
+                      filled
+                      class="q-ma-xs"
+                      style="width: 70px;"
+                      @update:model-value="val => updateSpeed(index, val)"
+                    />
                   </td>
                 </tr>
               </tbody>
@@ -112,8 +130,6 @@
 <script setup>
 import { ref, onMounted, watch } from "vue";
 import * as CF from "src/utils/calculation_functions";
-import { liveGpsData } from "src/boot/live-gps";
-import { isLiveDataFresh } from "src/utils/calculation_functions";
 
 const waypoints = ref([]);
 const isNavigating = ref(localStorage.getItem("isNavigating") === "true");
@@ -121,10 +137,12 @@ const plannedSpeed = ref(0);
 const totalDistance = ref(0);
 const startTime = ref("--:--:--");
 const endTime = ref("--:--:--");
-const sensorStatus = ref(isLiveDataFresh());
+const sensorStatus = ref(CF.isLiveDataFresh());
+const deviceID = ref("Unknown Device");
 
-setInterval(() => {
-  sensorStatus.value = isLiveDataFresh();
+setInterval(async () => {
+  sensorStatus.value = CF.isLiveDataFresh();
+  deviceID.value = (await CF.getLiveData('device_id')) || "Unknown Device";
 }, 100);
 
 function formatTimeArray(timeArray) {
@@ -135,15 +153,20 @@ function formatTimeArray(timeArray) {
 
 function parseTimeString(timeStr) {
   if (!timeStr) return null;
-  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
+  const [hours, minutes, seconds] = timeStr.split(":" ).map(Number);
   return [hours, minutes, seconds, 0];
+}
+
+function updateSpeed(index, newSpeed) {
+  waypoints.value[index].speed = newSpeed;
+  localStorage.setItem(`speed_${index}`, newSpeed);
 }
 
 async function calculateRouteDetails() {
   try {
     const coordinates = await CF.get_route_coordinates();
     if (coordinates && coordinates.length) {
-      totalDistance.value = CF.get_total_route_distance(coordinates).toFixed(2);
+      totalDistance.value = CF.get_total_route_distance(coordinates).toFixed(5);
 
       const plannedSpeedValue = localStorage.getItem("plannedSpeed");
       plannedSpeed.value = plannedSpeedValue || 0;
@@ -155,27 +178,32 @@ async function calculateRouteDetails() {
       } else if (savedTime) {
         startTime.value = savedTime;
       }
-      waypoints.value = coordinates.map((coord) => [coord, null]);
 
-      if (isNavigating.value) {
-        const savedETA = localStorage.getItem("waypointsETA");
-        if (savedETA) {
-          const eta = JSON.parse(savedETA);
+      const savedETA = localStorage.getItem("waypointsETA");
+      let eta = [];
+
+      if (isNavigating.value && savedETA) {
+        eta = JSON.parse(savedETA);
+        endTime.value = formatTimeArray(eta[eta.length - 1][1]);
+      } else if (plannedSpeedValue && coordinates.length) {
+        const startTimeArray = useCurrentTime ? CF.get_time() : parseTimeString(savedTime);
+        eta = await CF.get_eta_for_waypoints(startTimeArray, Number(plannedSpeedValue));
+        if (eta.length) {
           endTime.value = formatTimeArray(eta[eta.length - 1][1]);
-          waypoints.value = coordinates.map((coord, index) => [coord, eta[index][1]]);
-        } else if (plannedSpeedValue && coordinates.length) {
-          const startTimeArray = useCurrentTime ? CF.get_time() : parseTimeString(savedTime);
-          const eta = await CF.get_eta_for_waypoints(startTimeArray, Number(plannedSpeedValue));
-          if (eta.length) {
-            endTime.value = formatTimeArray(eta[eta.length - 1][1]);
-            waypoints.value = coordinates.map((coord, index) => [coord, eta[index][1]]);
-          }
         }
       }
 
+      waypoints.value = coordinates.map((coord, index) => {
+        return {
+          coord,
+          eta: eta?.[index]?.[1] || null,
+          speed: index < coordinates.length - 1
+            ? Number(localStorage.getItem(`speed_${index}`)) || Number(plannedSpeed.value)
+            : null
+        };
+      });
     }
-  }
-  catch (error) {
+  } catch (error) {
     console.error("Error calculating route details:", error);
   }
 }
@@ -186,7 +214,7 @@ watch(() => localStorage.getItem("isNavigating"), (newValue) => {
 
 onMounted(() => {
   isNavigating.value = localStorage.getItem("isNavigating") === "true";
-    calculateRouteDetails();
+  calculateRouteDetails();
 });
 </script>
 

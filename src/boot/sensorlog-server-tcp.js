@@ -37,6 +37,7 @@ const tcpServer = net.createServer(socket => {
             lon: data.locationLongitude,
             speed: data.locationSpeed,
             course: data.locationCourse,
+            trueHeading: data.locationTrueHeading,
             altitude: data.locationAltitude,
             battery_level: data.batteryLevel,
           };
