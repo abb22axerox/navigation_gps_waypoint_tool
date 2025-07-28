@@ -2,7 +2,6 @@ To do:
 
 - Info page ETA different speeds
 - Info page minimap with yellow speed zones
-
-- Dashboard crossed WP fix
+    - yellow speed border
 
 - UI overlay map?

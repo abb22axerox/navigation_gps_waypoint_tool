@@ -346,17 +346,19 @@ export function calculateRouteMidpoint(coordinates) {
   return [sumLat / coordinates.length, sumLng / coordinates.length];
 }
 
-// Helper functions for equirectangular projection
+// Helper functions for equirectangular projection using p2 as reference point
 const R = 6371000;
-const toRad = (deg) => deg * Math.PI / 180;
-const toDeg = (rad) => rad * 180 / Math.PI;
+const toRad = deg => deg * Math.PI / 180;
+const toDeg = rad => rad * 180 / Math.PI;
+
 function projectToXY([lat, lon], refLat, refLon) {
   const lat0 = toRad(refLat);
   return {
-    x: (toRad(lon - refLon)) * R * Math.cos(lat0),
-    y: (toRad(lat - refLat)) * R,
+    x: toRad(lon - refLon) * R * Math.cos(lat0),
+    y: toRad(lat - refLat) * R
   };
 }
+
 function projectToLatLon({ x, y }, refLat, refLon) {
   const lat = refLat + toDeg(y / R);
   const lon = refLon + toDeg(x / (R * Math.cos(toRad(refLat))));
@@ -368,66 +370,131 @@ function projectToLatLon({ x, y }, refLat, refLon) {
  * extended symmetrically by `extension` meters.
  */
 export function get_crossing_outline(p1, p2, p3, extension = 50) {
-  // Project p1, p2, p3 to local XY with p2 as origin
+  // Project points into local XY with p2 as origin
   const A = projectToXY(p1, p2[0], p2[1]);
   const B = projectToXY(p3, p2[0], p2[1]);
-  // Vectors from p2
+
+  // Vectors from p2 to p1 and p3
   const v1 = { x: -A.x, y: -A.y };
   const v2 = { x: B.x, y: B.y };
   const n1 = Math.hypot(v1.x, v1.y);
   const n2 = Math.hypot(v2.x, v2.y);
-  if (n1 === 0 || n2 === 0) return null;
-  // Unit vectors
+  if (!n1 || !n2) return null;
+
+  // Unit directions
   const u1 = { x: v1.x / n1, y: v1.y / n1 };
   const u2 = { x: v2.x / n2, y: v2.y / n2 };
-  // Bisector direction
+
+  // Angle bisector direction
   const bis = { x: u1.x + u2.x, y: u1.y + u2.y };
   const bisLen = Math.hypot(bis.x, bis.y);
-  if (bisLen === 0) return null;
+  if (!bisLen) return null;
   const bisUnit = { x: bis.x / bisLen, y: bis.y / bisLen };
-    // Cutting direction: perpendicular to the bisector
+
+  // Perpendicular to bisector (cut direction)
   const cutDir = { x: -bisUnit.y, y: bisUnit.x };
 
-  // Extended endpoints around p2 along cutDir
+  // Extend both ways by `extension` meters
   const E1 = { x: cutDir.x * extension, y: cutDir.y * extension };
   const E2 = { x: -cutDir.x * extension, y: -cutDir.y * extension };
 
+  // Debug: verify distances
+  const checkE1 = projectToXY(projectToLatLon(E1, p2[0], p2[1]), p2[0], p2[1]);
+  const checkE2 = projectToXY(projectToLatLon(E2, p2[0], p2[1]), p2[0], p2[1]);
+  // console.log(
+  //   'Cutline lengths (m):',
+  //   Math.hypot(checkE1.x, checkE1.y).toFixed(2),
+  //   Math.hypot(checkE2.x, checkE2.y).toFixed(2),
+  //   'expected:', extension
+  // );
+
+  // Return endpoints in [lat, lon] form
   return [
     projectToLatLon(E1, p2[0], p2[1]),
     projectToLatLon(E2, p2[0], p2[1])
   ];
-}
+};
 
-/**
- * Checks which side of the bisector cutline the boat is on.
- * Returns { side, cutLine }:
- *  - side > 0 means one side, < 0 the other;
- *  - cutLine is the two endpoints for drawing.
- */
 export async function check_crossing_status(p1, p2, p3, extension = 50) {
-  const currentPos = await getLiveData("coordinates");
+  const currentPos = await getLiveData('coordinates');
   if (!currentPos) return { dot: null, cutLine: null };
 
   const cutLine = get_crossing_outline(p1, p2, p3, extension);
   if (!cutLine) return { dot: null, cutLine: null };
 
-  // Recompute bisector vector in XY
+  // Recompute bisector & cutDir (as in get_crossing_outline)
   const A = projectToXY(p1, p2[0], p2[1]);
   const B = projectToXY(p3, p2[0], p2[1]);
   const v1 = { x: -A.x, y: -A.y };
-  const v2 = { x: B.x, y: B.y };
+  const v2 = { x:  B.x, y:  B.y };
   const n1 = Math.hypot(v1.x, v1.y);
   const n2 = Math.hypot(v2.x, v2.y);
   const u1 = { x: v1.x / n1, y: v1.y / n1 };
   const u2 = { x: v2.x / n2, y: v2.y / n2 };
+
   const bis = { x: u1.x + u2.x, y: u1.y + u2.y };
   const bisLen = Math.hypot(bis.x, bis.y);
+  if (!bisLen) return { dot: null, cutLine };
   const bisUnit = { x: bis.x / bisLen, y: bis.y / bisLen };
 
-  const boatXY = projectToXY(currentPos, p2[0], p2[1]);
-  const dot = boatXY.x * bisUnit.x + boatXY.y * bisUnit.y;
+  // Perp to bisector is your segment direction:
+  const cutDir = { x: -bisUnit.y, y: bisUnit.x };
 
+  // Boat in XY relative to p2:
+  const boatXY = projectToXY(currentPos, p2[0], p2[1]);
+
+  // 1) Check segment extent
+  const projection = boatXY.x * cutDir.x + boatXY.y * cutDir.y;
+  if (Math.abs(projection) > extension) {
+    return { dot: null, cutLine };
+  }
+
+  // 2) Now side-of-bisector
+  const dot = boatXY.x * bisUnit.x + boatXY.y * bisUnit.y;
   return { dot, cutLine };
+}
+
+/**
+ * Read the planned speed (knots) from localStorage.
+ */
+export function get_target_speed() {
+  const v = localStorage.getItem('plannedSpeed');
+  return v !== null ? parseFloat(v) : 0;
+}
+
+/**
+ * Compute bearing (° from North) from coord1 → coord2.
+ * coord = [lat, lon]
+ */
+export function calculate_bearing(coord1, coord2) {
+  const toRad = d => (d * Math.PI) / 180;
+  const toDeg = r => (r * 180) / Math.PI;
+
+  const [φ1, λ1] = coord1.map(toRad);
+  const [φ2, λ2] = coord2.map(toRad);
+  const Δλ = λ2 - λ1;
+
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x =
+    Math.cos(φ1) * Math.sin(φ2) -
+    Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+
+  let θ = toDeg(Math.atan2(y, x));
+  // Normalize to [0,360)
+  return (θ + 360) % 360;
+}
+
+/**
+ * Given current course and target course, return a normalized
+ * “course alert” in [-1 … +1], where ±1 = 90° off, 0 = on‑course.
+ */
+export function get_course_alert(currentCourse, targetCourse) {
+  // Shortest signed angular difference in [−180, +180]
+  let diff = ((targetCourse - currentCourse + 540) % 360) - 180;
+
+  // Scale linearly: ±90° → ±1, clamp to [-1, +1]
+  let scaled = diff / 90;
+  return Math.max(-1, Math.min(1, scaled));
 }
 
 // Add proper error handling for async operations

@@ -3,6 +3,7 @@
     <div class="slider-label top-label">Late</div>
     <div class="custom-slider vertical" @click="onClick($event)">
       <div class="custom-slider-track"></div>
+      <div class="center-line"></div>
       <div class="custom-slider-thumb" :style="{ bottom: thumbPosition }"></div>
     </div>
     <div class="slider-label bottom-label">Early</div>
@@ -167,5 +168,15 @@ function onClick(e) {
 
 .throttle-indicator.down {
   color: rgb(255, 0, 0);
+}
+
+.center-line {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 5px;
+  background-color: rgba(0, 0, 0, 1);
+  z-index: 2;
 }
 </style>
