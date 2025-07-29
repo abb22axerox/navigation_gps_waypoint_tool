@@ -20,6 +20,7 @@
         <q-card flat bordered class="settings-card q-pa-md shadow-2 rounded">
           <q-card-section>
             <div class="text-h6 q-mb-md">Navigation Parameters</div>
+
             <!-- Speed Input -->
             <q-input
               class="q-mb-md"
@@ -109,7 +110,7 @@
         </q-card>
       </div>
 
-      <!-- GPS2IP Settings Card -->
+      <!-- SensorLog Settings Card -->
       <div class="col-12 col-sm-6">
         <q-card flat bordered class="settings-card q-pa-md shadow-2 rounded">
           <q-card-section>
@@ -129,13 +130,9 @@
             </q-banner>
           </q-card-section>
         </q-card>
-      </div>
-
-      <!-- Route Upload Card -->
-      <div class="col-12 col-sm-6">
-        <q-card flat bordered class="settings-card q-pa-md shadow-2 rounded">
+        <q-card flat bordered class="settings-card q-pa-md q-mt-md shadow-2 rounded">
           <q-card-section>
-            <div class="text-h6 q-mb-md">Route Configuration</div>
+            <div class="text-h6 q-mb-md">Load Route</div>
             <q-file
               filled
               bottom-slots
@@ -192,7 +189,7 @@ const plannedTime = ref("");
 const useCurrentTime = ref(false);
 const updateFrequencyHz = ref(1); // Default 1 Hz update
 
-function handleFileUpload() {
+async function handleFileUpload() {
   if (!gpxFile.value) return;
   error.value = null;
   const file = gpxFile.value;
@@ -202,11 +199,22 @@ function handleFileUpload() {
   }
   try {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const content = e.target.result;
       localStorage.setItem("currentGPXFile", content);
       localStorage.setItem("currentGPXFileName", file.name);
       displayFileName.value = file.name;
+
+      // ✅ Reset speeds[] to match new route
+      const route = await CF.get_route_coordinates(); // assumes content is already stored
+      if (route && route.length > 1) {
+        const speed = Number(localStorage.getItem("plannedSpeed") || 5);
+        const newSpeeds = Array(route.length - 1).fill(speed);
+        localStorage.setItem("speeds", JSON.stringify(newSpeeds));
+      } else {
+        localStorage.removeItem("speeds");
+      }
+
       $q.notify({
         type: "positive",
         message: "GPX file uploaded successfully",
@@ -229,50 +237,48 @@ function clearFile() {
   displayFileName.value = "";
   localStorage.removeItem("currentGPXFile");
   localStorage.removeItem("currentGPXFileName");
+  localStorage.removeItem("speeds"); // clear speed array
 }
 
-function handleSpeedUpdate(value) {
-  if (value < 0) {
+async function handleSpeedUpdate(value) {
+  if (value <= 0) {
     $q.notify({
       type: "negative",
-      message: "Planned speed cannot be negative",
+      message: "Planned speed must be greater than 0",
       position: "top",
       timeout: 2000,
     });
     return;
-  } else if (value === 0) {
-    $q.notify({
-      type: "negative",
-      message: "Planned speed cannot be zero",
-      position: "top",
-      timeout: 2000,
-    });
-    return;
-  } else {
-    localStorage.setItem("plannedSpeed", value);
-    $q.notify({
-      type: "positive",
-      message: "Speed updated successfully",
-      position: "top",
-      timeout: 2000,
-    });
   }
+
+  const route = await CF.get_route_coordinates();
+  if (!route || route.length < 2) {
+    $q.notify({
+      type: "warning",
+      message: "No route loaded. Speed will apply when route is set.",
+      position: "top",
+    });
+    localStorage.setItem("plannedSpeed", value); // fallback
+    return;
+  }
+
+  const segmentCount = route.length - 1;
+  const speedsArray = Array(segmentCount).fill(value);
+  localStorage.setItem("speeds", JSON.stringify(speedsArray));
+  localStorage.setItem("plannedSpeed", value); // optional backup
+
+  $q.notify({
+    type: "positive",
+    message: `Speed applied to all ${segmentCount} segments`,
+    position: "top",
+  });
 }
 
 function handleCrossingExtensionUpdate(value) {
-  if (value < 0) {
+  if (value <= 0) {
     $q.notify({
       type: "negative",
-      message: "Crossing extension cannot be negative",
-      position: "top",
-      timeout: 2000,
-    });
-    return;
-  }
-  if (value === 0) {
-    $q.notify({
-      type: "negative",
-      message: "Crossing extension cannot be zero",
+      message: "Crossing extension must be greater than 0",
       position: "top",
       timeout: 2000,
     });
@@ -330,19 +336,22 @@ function handleUpdateFrequencyUpdate(value) {
   });
 }
 
-onMounted(() => {
+onMounted(async () => {
   const savedFileName = localStorage.getItem("currentGPXFileName");
   if (savedFileName) {
     displayFileName.value = savedFileName;
   }
+
   const savedSpeed = localStorage.getItem("plannedSpeed");
   if (savedSpeed) {
     plannedSpeed.value = Number(savedSpeed);
   }
+
   const savedCrossingExtension = localStorage.getItem("crossing_extension");
   if (savedCrossingExtension) {
     crossingExtension.value = Number(savedCrossingExtension);
   }
+
   const savedTime = localStorage.getItem("plannedTime");
   if (savedTime) {
     plannedTime.value = savedTime;
@@ -353,6 +362,7 @@ onMounted(() => {
       .map((v) => String(v).padStart(2, "0"))
       .join(":");
   }
+
   const savedUseCurrentTime = localStorage.getItem("useCurrentTime");
   if (savedUseCurrentTime !== null) {
     useCurrentTime.value = savedUseCurrentTime === "true";
@@ -364,9 +374,23 @@ onMounted(() => {
         .join(":");
     }
   }
+
   const savedUpdateFrequency = localStorage.getItem("updateFrequency");
   if (savedUpdateFrequency) {
     updateFrequencyHz.value = Number((1 / Number(savedUpdateFrequency)).toFixed(2));
+  }
+
+  // ✅ Ensure speed array matches route length
+  const route = await CF.get_route_coordinates();
+  if (route && route.length > 1) {
+    const segments = route.length - 1;
+    const savedSpeeds = JSON.parse(localStorage.getItem("speeds") || "[]");
+    const planned = Number(localStorage.getItem("plannedSpeed") || 5);
+
+    if (savedSpeeds.length !== segments) {
+      const newSpeeds = Array(segments).fill(planned);
+      localStorage.setItem("speeds", JSON.stringify(newSpeeds));
+    }
   }
 });
 </script>

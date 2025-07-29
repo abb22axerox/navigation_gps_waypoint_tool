@@ -228,37 +228,87 @@ export function convert_unit(operation, value) {
   }
 }
 
-export async function get_eta_for_waypoints(
-  planned_start_time,
-  planned_speed,
-  index = null
-) {
-  let route = await get_route_coordinates(); // Assumes route[0] is the planned starting waypoint
+// export async function get_eta_for_waypoints(
+//   planned_start_time,
+//   planned_speed,
+//   index = null
+// ) {
+//   let route = await get_route_coordinates(); // Assumes route[0] is the planned starting waypoint
+//   let start_time = convert_unit("to-seconds", planned_start_time);
+
+//   let route_eta_list = [];
+//   let cumulative_distance = 0.0;
+//   let prev_waypoint = route[0];
+
+//   // Add the start waypoint (ETA is the start time)
+//   route_eta_list.push([prev_waypoint, planned_start_time]);
+
+//   for (let i = 1; i < route.length; i++) {
+//     let waypoint = route[i];
+//     cumulative_distance += get_2point_route_distance(prev_waypoint, waypoint);
+//     let travel_time_seconds = (cumulative_distance / planned_speed) * 3600;
+//     let eta_seconds = start_time + travel_time_seconds;
+
+//     let formatted_eta = convert_unit("format-seconds", eta_seconds);
+//     route_eta_list.push([waypoint, formatted_eta]);
+//     prev_waypoint = waypoint; // Update previous waypoint for next iteration
+//   }
+
+//   if (index !== null) {
+//     return route_eta_list[index];
+//   } else {
+//     return route_eta_list;
+//   }
+// }
+
+// Helper to fetch fallback speeds
+export function getSpeedsWithFallback(plannedSpeed, numSegments) {
+  let storedSpeeds = [];
+  try {
+    storedSpeeds = JSON.parse(localStorage.getItem('speeds')) || [];
+  } catch (e) {
+    storedSpeeds = [];
+  }
+
+  for (let i = 0; i < numSegments; i++) {
+    if (typeof storedSpeeds[i] !== 'number' || storedSpeeds[i] <= 0 || isNaN(storedSpeeds[i])) {
+      storedSpeeds[i] = plannedSpeed;
+    }
+  }
+
+  return storedSpeeds;
+}
+
+export async function get_eta_for_waypoints(planned_start_time, segment_speeds, index = null) {
+  let route = await get_route_coordinates();
+  if (!route || route.length < 2) return [];
+
+  // planned_start_time is already [hours, minutes, seconds]
   let start_time = convert_unit("to-seconds", planned_start_time);
 
   let route_eta_list = [];
-  let cumulative_distance = 0.0;
+  let current_eta_seconds = start_time;
   let prev_waypoint = route[0];
 
-  // Add the start waypoint (ETA is the start time)
+  // Add the first waypoint with its start time
   route_eta_list.push([prev_waypoint, planned_start_time]);
 
   for (let i = 1; i < route.length; i++) {
     let waypoint = route[i];
-    cumulative_distance += get_2point_route_distance(prev_waypoint, waypoint);
-    let travel_time_seconds = (cumulative_distance / planned_speed) * 3600;
-    let eta_seconds = start_time + travel_time_seconds;
 
-    let formatted_eta = convert_unit("format-seconds", eta_seconds);
-    route_eta_list.push([waypoint, formatted_eta]);
-    prev_waypoint = waypoint; // Update previous waypoint for next iteration
+    const segment_distance = get_2point_route_distance(prev_waypoint, waypoint);
+    const speed = segment_speeds[i - 1]; // Speed for this segment
+
+    const travel_time_seconds = (segment_distance / speed) * 3600;
+    current_eta_seconds += travel_time_seconds;
+
+    const [hours, minutes, seconds, milliseconds] = convert_unit("format-seconds", current_eta_seconds);
+    route_eta_list.push([waypoint, [hours, minutes, seconds, milliseconds]]);
+
+    prev_waypoint = waypoint;
   }
 
-  if (index !== null) {
-    return route_eta_list[index];
-  } else {
-    return route_eta_list;
-  }
+  return index !== null ? route_eta_list[index] : route_eta_list;
 }
 
 export async function get_estimated_delay(eta_list, waypoint_index, current_speed) {
@@ -296,7 +346,7 @@ export async function get_estimated_delay(eta_list, waypoint_index, current_spee
 
   // 5. Throttle suggestion
   const coarse = 300;
-  const exponent = 0.3; // Updated exponent for 0.7 at 15 sec
+  const exponent = 0.4; // Updated exponent for 0.7 at 15 sec
 
   const clamped_delay = Math.min(delay_abs, coarse);
   const scaled = Math.pow(clamped_delay / coarse, exponent);
@@ -454,12 +504,57 @@ export async function check_crossing_status(p1, p2, p3, extension = 50) {
   return { dot, cutLine };
 }
 
+export async function check_finish_status(p1, p2, extension = 50) {
+  const currentPos = await getLiveData('coordinates');
+  if (!currentPos) return { dot: null, finishLine: null };
+
+  // 1. Project to XY space with p2 as origin
+  const A = projectToXY(p1, p2[0], p2[1]);
+  const B = { x: 0, y: 0 }; // p2 is the origin
+  const boatXY = projectToXY(currentPos, p2[0], p2[1]);
+
+  // 2. Vector from p1 to p2 (finish direction)
+  const finishVec = { x: B.x - A.x, y: B.y - A.y };
+  const norm = Math.hypot(finishVec.x, finishVec.y);
+  if (!norm) return { dot: null, finishLine: null };
+
+  const finishUnit = { x: finishVec.x / norm, y: finishVec.y / norm };
+
+  // 3. Perpendicular to finish direction
+  const perp = { x: -finishUnit.y, y: finishUnit.x };
+
+  // 4. Endpoints of the finish line in XY
+  const E1 = { x: perp.x * extension, y: perp.y * extension };
+  const E2 = { x: -perp.x * extension, y: -perp.y * extension };
+
+  // 5. Convert finish line to lat/lon for display
+  const finishLine = [
+    projectToLatLon(E1, p2[0], p2[1]),
+    projectToLatLon(E2, p2[0], p2[1])
+  ];
+
+  // 6. Check dot product to see if crossed
+  const dot = boatXY.x * finishUnit.x + boatXY.y * finishUnit.y;
+
+  return { dot, finishLine };
+}
+
 /**
  * Read the planned speed (knots) from localStorage.
  */
-export function get_target_speed() {
-  const v = localStorage.getItem('plannedSpeed');
-  return v !== null ? parseFloat(v) : 0;
+export function get_target_speed(index) {
+  const v = localStorage.getItem('speeds');
+  if (v !== null) {
+    try {
+      const speeds = JSON.parse(v);
+      if (Array.isArray(speeds) && index >= 0 && index < speeds.length) {
+        return speeds[index];
+      }
+    } catch (e) {
+      console.error('Error parsing speeds from localStorage:', e);
+    }
+  }
+  return 0;
 }
 
 /**
@@ -518,4 +613,13 @@ export async function sendMessage(message) {
     console.warn("Message error:", error);
     return null; // or a suitable fallback value
   }
+}
+
+export function addLog({ type, message }) {
+  const timestamp = new Date().toLocaleTimeString(undefined, { hour12: false });
+  const newLog = { timestamp, type, message };
+  const currentLogs = JSON.parse(localStorage.getItem('consoleLogs') || '[]');
+  const updatedLogs = [...currentLogs, newLog];
+  const trimmedLogs = updatedLogs.slice(-100); // Keep last 100
+  localStorage.setItem('consoleLogs', JSON.stringify(trimmedLogs));
 }

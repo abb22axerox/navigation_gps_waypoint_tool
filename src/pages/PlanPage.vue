@@ -1,13 +1,10 @@
 <template>
   <q-page class="q-pa-md bg-grey-1">
-    <!-- Enhanced Header -->
     <div class="page-header q-mb-lg">
       <div class="row items-center">
         <q-icon name="map" size="2.5rem" color="primary" class="q-mr-md" />
         <div>
-          <div class="text-h4 text-weight-medium q-mb-xs">
-            Route Information
-          </div>
+          <div class="text-h4 text-weight-medium q-mb-xs">Route Information</div>
           <div class="text-subtitle1 text-grey-7">
             View route details and waypoint information
           </div>
@@ -19,7 +16,35 @@
     <div class="row q-col-gutter-md">
       <!-- Left Column -->
       <div class="col-12 col-sm-4">
-        <!-- Navigation & GPS2IP Status Card -->
+        <!-- Mini Map -->
+        <q-card flat bordered class="q-mb-md shadow-2 rounded">
+          <q-card-section>
+            <div style="height: 200px; width: 100%; border-radius: 8px; overflow: hidden;">
+              <l-map
+                v-if="waypoints.length"
+                :zoom="zoom"
+                :center="mapCenter"
+                style="height: 100%; width: 100%;"
+                :options="{ zoomControl: false, attributionControl: false }"
+              >
+                <l-tile-layer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution="&copy; OpenStreetMap contributors"
+                />
+                <l-polyline :lat-lngs="waypointCoordinates" color="blue" />
+
+                <l-marker
+                  v-for="(point, index) in waypointCoordinates"
+                  :key="index"
+                  :lat-lng="point"
+                  :icon="getWaypointIcon(index)"
+                />
+              </l-map>
+            </div>
+          </q-card-section>
+        </q-card>
+
+        <!-- Status & Details Cards (unchanged) -->
         <q-card flat bordered class="q-pa-md q-mb-md shadow-2 rounded">
           <q-card-section>
             <div class="text-h6 q-mb-md">Status</div>
@@ -47,7 +72,6 @@
           </q-card-section>
         </q-card>
 
-        <!-- Route Details Card -->
         <q-card flat bordered class="q-pa-md q-mb-md shadow-2 rounded">
           <q-card-section>
             <div class="text-h6 q-mb-md">Route Details</div>
@@ -77,7 +101,7 @@
         </q-card>
       </div>
 
-      <!-- Waypoints Table Card -->
+      <!-- Waypoints Table (unchanged) -->
       <div class="col-12 col-sm-8">
         <q-card flat bordered class="q-pa-md shadow-2 rounded">
           <q-card-section>
@@ -88,14 +112,11 @@
                   <th>Waypoint</th>
                   <th>Coordinate</th>
                   <th>Estimated Time of Arrival</th>
-                  <th>Speed (kn)</th>
+                  <th colspan="2">Speed (kn)</th>
                 </tr>
               </thead>
               <tbody>
-                <tr
-                  v-for="(item, index) in waypoints"
-                  :key="index"
-                >
+                <tr v-for="(item, index) in waypoints" :key="index">
                   <td class="text-left text-weight-medium">{{ index + 1 }}</td>
                   <td class="text-left">{{ CF.formatCoordinates(item.coord) }}</td>
                   <td class="text-left text-primary">
@@ -108,7 +129,7 @@
                     style="vertical-align: middle;"
                   >
                     <q-input
-                      v-model.number="waypoints[index].speed"
+                      v-model.number="segmentSpeeds[index]"
                       type="number"
                       dense
                       filled
@@ -128,10 +149,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
 import * as CF from "src/utils/calculation_functions";
+import {
+  LMap,
+  LTileLayer,
+  LMarker,
+  LPolyline,
+} from "@vue-leaflet/vue-leaflet";
+import L from "leaflet";
 
 const waypoints = ref([]);
+const segmentSpeeds = ref([]);
 const isNavigating = ref(localStorage.getItem("isNavigating") === "true");
 const plannedSpeed = ref(0);
 const totalDistance = ref(0);
@@ -139,11 +168,12 @@ const startTime = ref("--:--:--");
 const endTime = ref("--:--:--");
 const sensorStatus = ref(CF.isLiveDataFresh());
 const deviceID = ref("Unknown Device");
+const zoom = ref(12);
+const mapCenter = ref([0, 0]); // initial default
 
-setInterval(async () => {
-  sensorStatus.value = CF.isLiveDataFresh();
-  deviceID.value = (await CF.getLiveData('device_id')) || "Unknown Device";
-}, 100);
+const waypointCoordinates = computed(() =>
+  waypoints.value.map((wp) => wp.coord)
+);
 
 function formatTimeArray(timeArray) {
   if (!Array.isArray(timeArray)) return timeArray;
@@ -153,13 +183,14 @@ function formatTimeArray(timeArray) {
 
 function parseTimeString(timeStr) {
   if (!timeStr) return null;
-  const [hours, minutes, seconds] = timeStr.split(":" ).map(Number);
+  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
   return [hours, minutes, seconds, 0];
 }
 
 function updateSpeed(index, newSpeed) {
-  waypoints.value[index].speed = newSpeed;
-  localStorage.setItem(`speed_${index}`, newSpeed);
+  segmentSpeeds.value[index] = newSpeed;
+  localStorage.setItem("speeds", JSON.stringify(segmentSpeeds.value));
+  calculateRouteDetails();
 }
 
 async function calculateRouteDetails() {
@@ -173,33 +204,22 @@ async function calculateRouteDetails() {
 
       const savedTime = localStorage.getItem("plannedTime");
       const useCurrentTime = localStorage.getItem("useCurrentTime") === "true";
-      if (useCurrentTime) {
-        startTime.value = formatTimeArray(CF.get_time());
-      } else if (savedTime) {
-        startTime.value = savedTime;
-      }
+      const startTimeArray = useCurrentTime ? CF.get_time() : parseTimeString(savedTime);
 
-      const savedETA = localStorage.getItem("waypointsETA");
-      let eta = [];
+      startTime.value = formatTimeArray(startTimeArray);
 
-      if (isNavigating.value && savedETA) {
-        eta = JSON.parse(savedETA);
+      segmentSpeeds.value = CF.getSpeedsWithFallback(Number(plannedSpeedValue), coordinates.length - 1);
+
+      const eta = await CF.get_eta_for_waypoints(startTimeArray, segmentSpeeds.value);
+
+      if (eta.length) {
         endTime.value = formatTimeArray(eta[eta.length - 1][1]);
-      } else if (plannedSpeedValue && coordinates.length) {
-        const startTimeArray = useCurrentTime ? CF.get_time() : parseTimeString(savedTime);
-        eta = await CF.get_eta_for_waypoints(startTimeArray, Number(plannedSpeedValue));
-        if (eta.length) {
-          endTime.value = formatTimeArray(eta[eta.length - 1][1]);
-        }
       }
 
       waypoints.value = coordinates.map((coord, index) => {
         return {
           coord,
           eta: eta?.[index]?.[1] || null,
-          speed: index < coordinates.length - 1
-            ? Number(localStorage.getItem(`speed_${index}`)) || Number(plannedSpeed.value)
-            : null
         };
       });
     }
@@ -208,8 +228,44 @@ async function calculateRouteDetails() {
   }
 }
 
+function getWaypointIcon(index) {
+  return L.divIcon({
+    className: "",
+    html: `
+      <div style="
+        background-color: red;
+        color: black;
+        font-weight: bold;
+        font-size: 12px;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        line-height: 24px;
+        text-align: center;
+        border: 2px solid white;
+        box-shadow: 0 0 2px rgba(0,0,0,0.5);
+      ">
+        ${index + 1}
+      </div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
+setInterval(async () => {
+  sensorStatus.value = CF.isLiveDataFresh();
+  deviceID.value = (await CF.getLiveData("device_id")) || "Unknown Device";
+}, 100);
+
 watch(() => localStorage.getItem("isNavigating"), (newValue) => {
   isNavigating.value = newValue === "true";
+});
+
+watch(waypointCoordinates, (coords) => {
+  if (coords.length > 0) {
+    mapCenter.value = CF.calculateRouteMidpoint(coords);
+  }
 });
 
 onMounted(() => {
@@ -217,11 +273,3 @@ onMounted(() => {
   calculateRouteDetails();
 });
 </script>
-
-<style scoped>
-.page-header {
-  background: linear-gradient(to right, rgba(25, 118, 210, 0.05), transparent);
-  padding: 1.5rem;
-  border-radius: 8px;
-}
-</style>

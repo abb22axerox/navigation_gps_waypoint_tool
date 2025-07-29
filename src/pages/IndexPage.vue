@@ -35,7 +35,6 @@
             v-if="isNavigating && isFinishSegment"
             :lat-lngs="[routeCoordinates[routeCoordinates.length - 2], routeCoordinates[routeCoordinates.length - 1]]"
             color="green"
-            weight="4"
           />
 
           <l-polyline
@@ -50,6 +49,13 @@
             :lat-lngs="waypointCutLine"
             color="red"
             dashArray="3, 6"
+          />
+
+          <l-polyline
+            v-if="isNavigating && finishCutLine.length === 2 && isFinishSegment"
+            :lat-lngs="finishCutLine"
+            color="green"
+            dash-array="5, 5"
           />
         </l-map>
       </div>
@@ -74,8 +80,8 @@
                         {{ (isNavigating ? currentSpeed : 0).toFixed(1) }}
                         <span class="text-caption">knots</span>
                       </div>
-                      <div class="text-subtitle2 text-grey-7">Speed</div>
-                      <div class="text-caption text-grey-5">
+                      <div class="text-subtitle2 text-grey-9">Speed</div>
+                      <div class="text-caption text-grey-8">
                         Target: {{ targetSpeed.toFixed(1) }} knots
                       </div>
                     </q-card-section>
@@ -101,8 +107,8 @@
                           {{ isNavigating ? currentCourse.toFixed(0) : '0' }}°
                         </div>
                       </div>
-                      <div class="text-subtitle2 text-grey-7">Course</div>
-                      <div class="text-caption text-grey-5">
+                      <div class="text-subtitle2 text-grey-9">Course</div>
+                      <div class="text-caption text-grey-8">
                         Target: {{ targetCourse.toFixed(0) }}°
                       </div>
                     </q-card-section>
@@ -129,7 +135,7 @@
                           }}
                         </span>
                       </div>
-                      <div class="text-subtitle2 text-grey-7">Delay</div>
+                      <div class="text-subtitle2 text-grey-9">Delay</div>
                     </q-card-section>
                   </q-card>
                 </div>
@@ -147,7 +153,7 @@
                             : "0 / 0"
                         }}
                       </div>
-                      <div class="text-subtitle2 text-grey-7">Next Waypoint</div>
+                      <div class="text-subtitle2 text-grey-9">Next Waypoint</div>
                     </div>
                     <div class="col text-center">
                       <div class="text-h5 text-weight-medium">
@@ -158,7 +164,7 @@
                         }}
                         <span class="text-caption">NM</span>
                       </div>
-                      <div class="text-subtitle2 text-grey-7">Remaining Distance</div>
+                      <div class="text-subtitle2 text-grey-9">Remaining Distance</div>
                     </div>
                     <div class="col text-center">
                       <div class="text-h5 text-weight-medium">
@@ -168,7 +174,7 @@
                             : "--:--:--"
                         }}
                       </div>
-                      <div class="text-subtitle2 text-grey-7">Must Arrive</div>
+                      <div class="text-subtitle2 text-grey-9">Must Arrive</div>
                     </div>
                   </div>
                 </q-card-section>
@@ -177,14 +183,30 @@
               <!-- Navigation Controls -->
               <div class="row q-mt-md">
                 <q-btn
-                  class="col-5"
+                  class="col-1"
+                  size="md"
+                  color="secondary"
+                  icon="mdi-minus"
+                  @click="goToPreviousWaypoint"
+                  :disable="passedWaypointIndex <= 0 || !isNavigating"
+                />
+                <q-btn
+                  class="col-4 q-mr-md q-ml-md"
                   size="md"
                   :color="isNavigating ? 'negative' : 'primary'"
                   :label="isNavigating ? 'Stop Navigation' : 'Start Navigation'"
                   @click="toggleNavigation"
                 />
+                <q-btn
+                  class="col-1"
+                  size="md"
+                  color="secondary"
+                  icon="mdi-plus"
+                  @click="skipWaypoint"
+                  :disable="passedWaypointIndex >= routeCoordinates.length - 2 || !isNavigating"
+                />
                 <q-select
-                  class="col-6 q-ml-md"
+                  class="col-4 q-ml-md"
                   filled
                   v-model="startWaypointIndex"
                   :options="routeCoordinates.map((_, idx) => ({
@@ -195,7 +217,6 @@
                   map-options
                 />
               </div>
-
             </div>
           </div>
 
@@ -255,17 +276,32 @@ function createBoatIcon(angle = 0) {
     html: `<div style="transform: rotate(${angle - 90}deg); font-size: 24px;">&#10148;</div>`,
     className: '',
     iconSize: [24, 24],
-    iconAnchor: [12, 12],
+    iconAnchor: [12, 18],  // <-- center anchor
   });
 }
 
 function createIndexedDotIcon(index) {
   return L.divIcon({
-    html: `<div style="position: relative;">
-      <div style="background:red; width:8px; height:8px; border-radius:50%;"></div>
-      <div style="position: absolute; top:-12px; left:8px; font-size:12px; background:white; padding:0 2px; border-radius:2px;">${index + 1}</div>
-    </div>`,
+    html: `
+      <div style="
+        background-color: red;
+        color: black;
+        font-weight: bold;
+        font-size: 12px;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        line-height: 24px;
+        text-align: center;
+        border: 2px solid white;
+        box-shadow: 0 0 2px rgba(0,0,0,0.5);
+      ">
+        ${index + 1}
+      </div>
+    `,
     className: '',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
   });
 }
 
@@ -279,15 +315,32 @@ function createIndexedStartEndIcon(index, isLast) {
   });
 }
 
-// const getDotProductIcon = computed(() => {
-//   const color = lastDotProduct.value > 0 ? 'green' : 'orange';
-//   return L.divIcon({
-//     html: `<div style="background:${color}; width:12px; height:12px; border-radius:50%;"></div>`,
-//     className: '',
-//     iconSize: [12, 12],
-//     iconAnchor: [6, 6],
-//   });
-// });
+function skipWaypoint() {
+  if (
+    passedWaypointIndex.value < routeCoordinates.value.length - 2 &&
+    isNavigating.value
+  ) {
+    passedWaypointIndex.value++;
+    $q.notify({ type: 'info', message: `Skipped to waypoint ${passedWaypointIndex.value + 2}`, position: 'top' });
+    CF.addLog({
+              type: 'info',
+              message: `Crossed waypoint ${passedWaypointIndex.value + 1}`
+    });
+  }
+  else {
+    $q.notify({ type: 'negative', message: 'Already at final waypoint', position: 'top' });
+  }
+}
+
+function goToPreviousWaypoint() {
+  if (passedWaypointIndex.value > 0 && isNavigating.value) {
+    passedWaypointIndex.value--;
+    $q.notify({ type: 'info', message: `Returned to waypoint ${passedWaypointIndex.value + 2}`, position: 'top' });
+  }
+  else {
+    $q.notify({ type: 'negative', message: 'Already at first waypoint', position: 'top' });
+  }
+}
 
 const isFinishSegment = computed(() => {
   // true when the next leg is the final one
@@ -327,9 +380,13 @@ function getWaypointIcon(index) {
   }
 }
 
-
 function parseTimeString(str) {
   return str.split(':').map(Number).concat(0);
+}
+
+function loadSavedSpeeds(length, fallbackSpeed) {
+  const saved = JSON.parse(localStorage.getItem("speeds") || "[]");
+  return Array.from({ length }, (_, i) => saved[i] ?? fallbackSpeed);
 }
 
 const $q = useQuasar();
@@ -351,9 +408,12 @@ const estimatedDelay = ref(null);
 const throttleValue = ref(0);
 const lastDotProduct = ref(null);
 const waypointCutLine = ref([]);
-const targetSpeed  = ref(CF.get_target_speed());   // planned speed from localStorage
-const targetCourse = ref(0);                       // computed bearing to next WP
-const courseAlert  = ref(0);                       // normalized course deviation
+const finishCutLine = ref([]);
+let targetSpeed  = ref(0);
+const targetCourse = ref(0);
+const courseAlert  = ref(0);
+const speedWarning = ref(false);
+const lastTargetSpeed = ref(null);
 
 const delayColor = computed(() => {
   const seconds = estimatedDelay.value?.[1];
@@ -395,6 +455,7 @@ watch(
         currentCourse.value,
         targetCourse.value
       );
+      targetSpeed = CF.get_target_speed(passedWaypointIndex.value);
     }
     else {
       targetCourse.value = 0;
@@ -403,6 +464,25 @@ watch(
   },
   { immediate: true }
 );
+
+watch(passedWaypointIndex, (newIndex) => {
+  const newSpeed = CF.get_target_speed(newIndex);
+
+  if (lastTargetSpeed.value !== null && newSpeed !== lastTargetSpeed.value) {
+    speedWarning.value = true;
+    $q.notify({
+      type: 'warning',
+      message: `Target speed changed to ${newSpeed.toFixed(1)} knots`,
+      position: 'top',
+    });
+
+    setTimeout(() => {
+      speedWarning.value = false;
+    }, 2000);
+  }
+
+  lastTargetSpeed.value = newSpeed;
+});
 
 // 1. Initialize from localStorage (fallback to 0)
 const raw = localStorage.getItem('startWaypointIndex');
@@ -420,6 +500,10 @@ watch(startWaypointIndex, (newIdx) => {
   }
 });
 
+watch(passedWaypointIndex, (val) => {
+  localStorage.setItem('passedWaypointIndex', String(val));
+});
+
 function setNavigationState(active) {
   isNavigating.value = active;
   localStorage.setItem('isNavigating', active);
@@ -431,6 +515,11 @@ let prevTime = null;
 let crossing_extension;
 
 async function initializeNavigation() {
+  CF.addLog({
+    type: 'info',
+    message: `Navigation started from waypoint ${passedWaypointIndex.value + 1}`
+  });
+
   const delayMs = Number(localStorage.getItem('updateFrequency') || 1) * 1000;
 
   let wasDotPositive = false;        // ← added for hysteresis logic
@@ -443,7 +532,6 @@ async function initializeNavigation() {
 
       // ── Update boat state ─────────────────────────────────────────
       center.value = pos;
-      // zoom.value = 15; // Zoom in on the boat position
       currentSpeed.value = (await CF.getLiveData('speed')) || 0;
       currentCourse.value = (await CF.getLiveData('course')) || 0;
       boatIcon.value = createBoatIcon(currentCourse.value);
@@ -451,30 +539,30 @@ async function initializeNavigation() {
       prevPos = pos;
       prevTime = Date.now() / 1000;
 
-      // ── Only if we have at least 3 points ahead ────────────────────
-      if (
-        routeCoordinates.value.length > passedWaypointIndex.value + 2 &&
-        !waypointSwitching.value
-      ) {
-        const i = passedWaypointIndex.value;
-        const p1 = routeCoordinates.value[i];       // WP4 (just passed)
-        const p2 = routeCoordinates.value[i + 1];   // WP5 (heading toward)
-        const p3 = routeCoordinates.value[i + 2];   // WP6
+      crossing_extension = Number(localStorage.getItem('crossing_extension'));
 
-        const crossing_extension = Number(localStorage.getItem('crossing_extension'));
+      const i = passedWaypointIndex.value;
 
-        // 1) Compute dot and cut-line
+      // ── Normal segment crossing ──────────────────────────────────
+      if (routeCoordinates.value.length > i + 2 && !waypointSwitching.value) {
+        const p1 = routeCoordinates.value[i];
+        const p2 = routeCoordinates.value[i + 1];
+        const p3 = routeCoordinates.value[i + 2];
+
         const { dot, cutLine } = await CF.check_crossing_status(p1, p2, p3, crossing_extension);
         lastDotProduct.value = dot;
         waypointCutLine.value = cutLine || [];
 
-        // 2) Hysteresis logic to avoid bouncing near cutline
         if (dot > epsilon && !wasDotPositive) {
           waypointSwitching.value = true;
           setTimeout(() => {
             passedWaypointIndex.value++;
+            CF.addLog({
+              type: 'info',
+              message: `Crossed waypoint ${i + 2}`
+            });
             waypointSwitching.value = false;
-          }, 1000);
+          }, 100);
         }
 
         if (dot < -epsilon && wasDotPositive) {
@@ -486,14 +574,21 @@ async function initializeNavigation() {
         }
       }
 
-      // ── Recompute ETA/delay ────────────────────────────────────────
-      // if (etaList.value.length && plannedStartTime.value) {
-      //   estimatedDelay.value = await CF.get_estimated_delay(
-      //     etaList.value,
-      //     passedWaypointIndex.value + 1,
-      //     currentSpeed.value
-      //   );
-      // }
+      // ── FINAL segment: check finish line crossing ────────────────
+      else if (routeCoordinates.value.length === i + 2 && !waypointSwitching.value) {
+        const p1 = routeCoordinates.value[i];
+        const p2 = routeCoordinates.value[i + 1];
+
+        const { dot, finishLine } = await CF.check_finish_status(p1, p2, crossing_extension);
+        finishCutLine.value = finishLine || [];
+
+        if (dot > epsilon) {
+          stopNavigation();
+          setNavigationState(false);
+          $q.notify({ type: 'positive', message: '🎉 Finish line crossed!', position: 'top' });
+          CF.addLog({ type: 'info', message: `Finish line crossed!` });
+        }
+      }
 
       const nextIdx = passedWaypointIndex.value + 1;
       if (
@@ -502,12 +597,11 @@ async function initializeNavigation() {
         !isNaN(currentSpeed.value)
       ) {
         estimatedDelay.value = await CF.get_estimated_delay(
-        etaList.value,
-        nextIdx,
-        currentSpeed.value
+          etaList.value,
+          nextIdx,
+          currentSpeed.value
         );
       } else {
-        // no valid next ETA → clear or skip
         estimatedDelay.value = null;
       }
 
@@ -565,8 +659,8 @@ async function startNavigation() {
     ? CF.get_time()
     : parseTimeString(localStorage.getItem('plannedTime') || formatTime(CF.get_time()));
 
-  etaList.value = await CF.get_eta_for_waypoints(plannedStartTime.value, Number(plannedSpeed));
-
+  const speeds = loadSavedSpeeds(routeCoordinates.value.length - 1, Number(plannedSpeed));
+  etaList.value = await CF.get_eta_for_waypoints(plannedStartTime.value, speeds);
 
   localStorage.setItem('waypointsETA', JSON.stringify(etaList.value));
   initializeNavigation();
@@ -611,11 +705,13 @@ onMounted(async () => {
 
   routeCoordinates.value = coords;
   center.value = CF.calculateRouteMidpoint(coords);
-  passedWaypointIndex.value = startWaypointIndex.value;
 
   await nextTick();
 
   if (isNavigating.value) {
+    const storedIndex = localStorage.getItem('passedWaypointIndex');
+    passedWaypointIndex.value = storedIndex !== null ? Number(storedIndex) : startWaypointIndex.value;
+
     const storedETA = localStorage.getItem('waypointsETA');
     if (storedETA) {
       try {
@@ -640,6 +736,9 @@ onMounted(async () => {
     } else {
       console.warn('Navigation was restored but ETA or route is missing.');
     }
+  }
+  else {
+    passedWaypointIndex.value = startWaypointIndex.value;
   }
 });
 

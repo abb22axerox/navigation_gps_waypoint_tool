@@ -1,0 +1,145 @@
+/* sliderStyles.css */
+
+/* === Shared Label Style === */
+.slider-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.7);
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1;
+  width: 60px;
+}
+
+/* === Thumb Pulse Animation === */
+@keyframes pulse {
+  0%   { box-shadow: 0 0 4px rgba(0, 0, 0, 0.3); }
+  50%  { box-shadow: 0 0 8px rgba(0, 0, 0, 0.5); }
+  100% { box-shadow: 0 0 4px rgba(0, 0, 0, 0.3); }
+}
+
+/* === Horizontal Slider === */
+.horizontal-slider-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 60px;
+}
+
+.custom-slider.horizontal {
+  width: 70%;
+  height: 30px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-slider.horizontal .custom-slider-track {
+  width: 100%;
+  height: 30px;
+  background: linear-gradient(
+    to right,
+    red 0%,
+    orange 25%,
+    green 45%,
+    green 55%,
+    orange 75%,
+    red 100%
+  );
+  border-radius: 5px;
+  position: absolute;
+}
+
+.custom-slider.horizontal .custom-slider-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 60px;
+  background: black;
+  border-radius: 6px;
+  border: 2px solid #fff;
+  pointer-events: none;
+  transition: left 0.3s ease;
+  animation: pulse 2s infinite;
+  z-index: 3;
+}
+
+.custom-slider.horizontal .center-line {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 5px;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 1);
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+/* === Vertical Slider === */
+.vertical-slider-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 400px;
+  width: 60px;
+  justify-content: space-between;
+}
+
+.custom-slider.vertical {
+  position: relative;
+  width: 30px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-slider.vertical .custom-slider-track {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    to bottom,
+    red 0%,
+    orange 25%,
+    green 45%,
+    green 55%,
+    orange 75%,
+    red 100%
+  );
+  border-radius: 4px;
+  position: absolute;
+}
+
+.custom-slider.vertical .custom-slider-thumb {
+  position: absolute;
+  left: 50%;
+  bottom: var(--thumb-position); /* dynamically set */
+  transform: translate(-50%, -50%); /* shifts it up by 50% of its own height */
+  width: 60px;
+  height: 20px;
+  background: black;
+  border-radius: 6px;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  transition: bottom 0.3s ease-out;
+  animation: pulse 2s infinite;
+}
+
+
+.custom-slider.vertical .center-line {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 5px;
+  background-color: rgba(0, 0, 0, 1);
+  z-index: 1;
+}
+
+/* === Label Color Variants === */
+.left-label  { color: red; }
+.right-label { color: green; }

@@ -4,9 +4,9 @@ const routes = [
     component: () => import('layouts/MainLayout.vue'),
     children: [
       { path: '', component: () => import('pages/IndexPage.vue') },
-      { path: 'info', component: () => import('pages/InfoPage.vue') },
+      { path: 'plan', component: () => import('src/pages/PlanPage.vue') },
       { path: 'settings', component: () => import('pages/SettingsPage.vue') },
-      { path: 'console', component: () => import('pages/ConsolePage.vue') },
+      { path: 'log', component: () => import('src/pages/LogPage.vue') },
       { path: 'test', component: () => import('pages/TestPage.vue') }
     ],
   },

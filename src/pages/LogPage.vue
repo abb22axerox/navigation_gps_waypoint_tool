@@ -6,7 +6,7 @@
         <div class="row items-center">
           <q-icon name="terminal" size="2.5rem" color="primary" class="q-mr-md" />
           <div>
-            <div class="text-h4 text-weight-medium q-mb-xs">Console</div>
+            <div class="text-h4 text-weight-medium q-mb-xs">Log</div>
             <div class="text-subtitle1 text-grey-7">
               Monitor system logs and navigation status
             </div>
@@ -43,65 +43,58 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
+import * as CF from 'src/utils/calculation_functions';
 
 const logMessages = ref([])
-
-function addLog({ type, message }) {
-  const timestamp = new Date().toLocaleTimeString()
-  const newLog = { timestamp, type, message }
-  const currentLogs = JSON.parse(localStorage.getItem('consoleLogs') || '[]')
-  const updatedLogs = [...currentLogs, newLog]
-  // Keep only the last 100 messages
-  const trimmedLogs = updatedLogs.slice(-100)
-  logMessages.value = trimmedLogs
-  localStorage.setItem('consoleLogs', JSON.stringify(trimmedLogs))
-}
 
 function clearHistory() {
   localStorage.removeItem('consoleLogs')
   logMessages.value = []
-  addLog({ type: 'info', message: 'Console history cleared' })
+  CF.addLog({ type: 'info', message: 'Console history cleared' })
+  loadLogs();
 }
 
-watch(
-  () => localStorage.getItem('isNavigating'),
-  (newValue, oldValue) => {
-    if (newValue !== null && newValue !== oldValue) {
-      const message = newValue === 'true' ? 'Navigation started' : 'Navigation stopped'
-      const type = newValue === 'true' ? 'positive' : 'warning'
-      addLog({ type, message })
-    }
-  },
-  { immediate: true }
-)
+// watch(
+//   () => localStorage.getItem('isNavigating'),
+//   (newValue, oldValue) => {
+//     if (newValue !== null && newValue !== oldValue) {
+//       const message = newValue === 'true' ? 'Navigation started' : 'Navigation stopped'
+//       const type = newValue === 'true' ? 'positive' : 'warning'
+//       CF.addLog({ type, message })
+//     }
+//   },
+// )
 
-watch(
-  () => localStorage.getItem('currentGPXFileName'),
-  (newValue, oldValue) => {
-    if (newValue && newValue !== oldValue) {
-      addLog({ type: 'info', message: `Loaded route file: ${newValue}` })
-    }
-  },
-  { immediate: true }
-)
+// watch(
+//   () => localStorage.getItem('currentGPXFileName'),
+//   (newValue, oldValue) => {
+//     if (newValue && newValue !== oldValue) {
+//       CF.addLog({ type: 'info', message: `Loaded route file: ${newValue}` })
+//     }
+//   },
+//   { immediate: true }
+// )
 
-watch(
-  () => localStorage.getItem('plannedSpeed'),
-  (newValue, oldValue) => {
-    if (newValue && newValue !== oldValue) {
-      addLog({ type: 'info', message: `Updated planned speed to ${newValue} knots` })
-    }
-  },
-  { immediate: true }
-)
+// watch(
+//   () => localStorage.getItem('plannedSpeed'),
+//   (newValue, oldValue) => {
+//     if (newValue && newValue !== oldValue) {
+//       CF.addLog({ type: 'info', message: `Updated planned speed to ${newValue} knots` })
+//     }
+//   },
+//   { immediate: true }
+// )
+
+function loadLogs() {
+  const logs = JSON.parse(localStorage.getItem('consoleLogs') || '[]')
+  logMessages.value = logs.map(log => ({
+    ...log,
+    type: log.type || 'info', // Default to 'info' if type is missing
+  }))
+}
 
 onMounted(() => {
-  const savedLogs = localStorage.getItem('consoleLogs')
-  if (savedLogs) {
-    logMessages.value = JSON.parse(savedLogs)
-  } else {
-    addLog({ type: 'info', message: 'Navigation system initialized' })
-  }
+  loadLogs();
 })
 </script>
 

@@ -15,9 +15,9 @@
           <!-- Tabs (Desktop Only) -->
           <q-tabs inline-label class="desktop-only">
             <q-route-tab to="/" label="Dashboard" icon="dashboard" />
-            <q-route-tab to="/info" label="Info" icon="map" />
+            <q-route-tab to="/plan" label="Plan" icon="map" />
+            <q-route-tab to="/log" label="Log" icon="book" />
             <q-route-tab to="/settings" label="Settings" icon="settings" />
-            <q-route-tab to="/console" label="Console" icon="terminal" />
           </q-tabs>
 
           <!-- Mobile Menu -->
@@ -56,8 +56,8 @@
 
               <!-- Battery Percentage and Icon, shown only if GPS connected -->
               <template v-if="gpsFresh">
-                <div class="q-ml-md">{{ batteryLevelDisplay }}</div>
-                <q-icon :name="batteryIcon" size="20px" class="q-mr-md" />
+                <q-icon :name="batteryIcon" size="20px" class="q-ml-md " />
+                <div class="q-mr-md">{{ batteryLevelDisplay }}</div>
               </template>
 
               <!-- Time -->
