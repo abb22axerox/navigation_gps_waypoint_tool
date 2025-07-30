@@ -125,7 +125,7 @@
   border: 2px solid #fff;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   pointer-events: none;
-  transition: bottom 0.3s ease-out;
+  transition: top 0.3s ease-out;
   animation: pulse 2s infinite;
 }
 

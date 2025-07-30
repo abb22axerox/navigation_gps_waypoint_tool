@@ -1,7 +1,7 @@
 <template>
   <q-page class="q-pa-md bg-grey-1">
     <!-- Enhanced Header -->
-    <div class="page-header q-mb-lg">
+    <div class="q-mb-lg">
       <div class="row items-center">
         <q-icon name="settings" size="2.5rem" color="primary" class="q-mr-md" />
         <div>
@@ -396,9 +396,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.page-header {
-  border-bottom: 1px solid #e0e0e0;
-}
 .settings-card {
   background-color: white;
 }

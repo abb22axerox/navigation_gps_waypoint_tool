@@ -28,23 +28,18 @@ const emit = defineEmits(['update:modelValue']);
 
 const range = computed(() => props.max - props.min);
 
-// INVERTED: Higher value = left side
-const percent = computed(() => (1 - (props.modelValue - props.min) / range.value) * 100);
+// No inversion: min = left 0%, max = right 100%
+const percent = computed(() => ((props.modelValue - props.min) / range.value) * 100);
 const thumbPosition = computed(() => `${percent.value}%`);
 
 function onClick(e) {
   if (props.readonly) return;
-
   const sliderRect = e.currentTarget.getBoundingClientRect();
   const clickX = e.clientX - sliderRect.left;
-
-  // INVERTED: Clicking further right gives lower values
-  let newPercent = 1 - (clickX / sliderRect.width);
-  newPercent = Math.max(0, Math.min(1, newPercent));
-
+  let newPercent = clickX / sliderRect.width; // left = 0%
+  newPercent = Math.min(Math.max(newPercent, 0), 1);
   let newVal = props.min + newPercent * range.value;
   newVal = Math.round(newVal / props.step) * props.step;
-
   emit('update:modelValue', newVal);
 }
 </script>

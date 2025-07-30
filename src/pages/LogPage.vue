@@ -1,7 +1,7 @@
 <template>
   <q-page class="bg-grey-1 q-pa-md">
     <!-- Enhanced Header -->
-    <div class="page-header q-mb-lg">
+    <div class="q-mb-lg">
       <div class="row items-center justify-between">
         <div class="row items-center">
           <q-icon name="terminal" size="2.5rem" color="primary" class="q-mr-md" />
@@ -50,7 +50,7 @@ const logMessages = ref([])
 function clearHistory() {
   localStorage.removeItem('consoleLogs')
   logMessages.value = []
-  CF.addLog({ type: 'info', message: 'Console history cleared' })
+  CF.addLog({ type: 'info', message: 'Log history cleared' })
   loadLogs();
 }
 
@@ -99,11 +99,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.page-header {
-  background: linear-gradient(to right, rgba(25, 118, 210, 0.05), transparent);
-  padding: 1.5rem;
-  border-radius: 8px;
-}
 .border-bottom {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }

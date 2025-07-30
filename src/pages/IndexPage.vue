@@ -63,7 +63,6 @@
       <!-- Dashboard Section -->
       <div class="col-6 q-pl-md">
         <div class="row items-start">
-
           <div class="col-10">
             <div class="column q-gutter-y-md">
               <div class="text-h6 q-mb-sm">
@@ -71,10 +70,10 @@
               </div>
 
               <!-- Speed / Course / Delay row -->
-              <div class="row q-col-gutter-md items-stretch">
+              <div class="row q-col-gutter-md">
                 <!-- Speed Card -->
                 <div class="col-4">
-                  <q-card flat bordered class="shadow-2 rounded" style="height:100%">
+                  <q-card flat bordered class="shadow-2 rounded full-height">
                     <q-card-section>
                       <div class="text-h5 text-weight-bold text-primary">
                         {{ (isNavigating ? currentSpeed : 0).toFixed(1) }}
@@ -90,7 +89,7 @@
 
                 <!-- Course Card -->
                 <div class="col-4">
-                  <q-card flat bordered class="shadow-2 rounded" style="height:100%">
+                  <q-card flat bordered class="shadow-2 rounded full-height">
                     <q-card-section class="column justify-between">
                       <div class="row items-center q-gutter-sm">
                         <div
@@ -117,7 +116,7 @@
 
                 <!-- Delay Card -->
                 <div class="col-4">
-                  <q-card flat bordered class="shadow-2 rounded" style="height:100%">
+                  <q-card flat bordered class="shadow-2 rounded full-height">
                     <q-card-section>
                       <div class="text-h5 text-weight-bold" :class="delayColor">
                         {{
@@ -129,11 +128,16 @@
                           {{
                             isNavigating
                               ? (estimatedDelay?.length
-                                  ? (estimatedDelay[3] ? "Late" : "Early")
-                                  : "On Time")
+                                  ? (
+                                      Math.abs(estimatedDelay[1]) < 1
+                                        ? "On Time"
+                                        : (estimatedDelay[3] ? "Late" : "Early")
+                                    )
+                                  : "On Time"
+                                )
                               : "--"
                           }}
-                        </span>
+                          </span>
                       </div>
                       <div class="text-subtitle2 text-grey-9">Delay</div>
                     </q-card-section>
@@ -230,7 +234,6 @@
               class="q-mt-md"
             />
           </div>
-
         </div>
       </div>
     </div>
@@ -323,8 +326,8 @@ function skipWaypoint() {
     passedWaypointIndex.value++;
     $q.notify({ type: 'info', message: `Skipped to waypoint ${passedWaypointIndex.value + 2}`, position: 'top' });
     CF.addLog({
-              type: 'info',
-              message: `Crossed waypoint ${passedWaypointIndex.value + 1}`
+      type: 'info',
+      message: `Skipped waypoint ${passedWaypointIndex.value + 1}`
     });
   }
   else {
@@ -418,18 +421,29 @@ const lastTargetSpeed = ref(null);
 const delayColor = computed(() => {
   const seconds = estimatedDelay.value?.[1];
   if (seconds == null) return '';
-  if (seconds <= 3) return 'text-positive';
-  if (seconds <= 5) return 'text-warning';
-  if (seconds <= 10) return 'text-orange';
-  return 'text-negative';
+
+  const absSec = Math.abs(seconds);
+
+  if (absSec <= 3) {
+    // On time (±3 seconds)
+    return 'text-positive'; // green
+  }
+
+  if (seconds < 0) {
+    // Early delays (negative seconds)
+    if (absSec <= 5) return 'text-warning';  // mild early - orange
+    if (absSec <= 10) return 'text-orange';  // more early - darker orange
+    return 'text-negative';                   // very early - red
+  } else {
+    // Late delays (positive seconds)
+    if (absSec <= 5) return 'text-warning';
+    if (absSec <= 10) return 'text-orange';
+    return 'text-negative';
+  }
 });
 
 watchEffect(() => {
   targetSpeed.value = CF.get_target_speed();
-});
-
-watch(estimatedDelay, (newDelay) => {
-  if (newDelay?.length) throttleValue.value = newDelay[4];
 });
 
 watch(isNavigating, (val) => {
@@ -437,29 +451,30 @@ watch(isNavigating, (val) => {
 });
 
 watch(
-  [() => currentBoatPos.value, () => passedWaypointIndex.value],
-  () => {
+  [
+    () => estimatedDelay.value,
+    () => currentBoatPos.value,
+    () => passedWaypointIndex.value
+  ],
+  ([newDelay]) => {
+    // Handle estimatedDelay update
+    if (newDelay?.length) {
+      throttleValue.value = newDelay[4];
+    }
+
+    // Handle boat position and waypoint updates
     if (
       isNavigating.value &&
       currentBoatPos.value &&
       routeCoordinates.value.length > passedWaypointIndex.value + 1
     ) {
       const nextWP = routeCoordinates.value[passedWaypointIndex.value + 1];
-      // 4a) Bearing from boat → next waypoint:
-      targetCourse.value = CF.calculate_bearing(
-        currentBoatPos.value,
-        nextWP
-      );
-      // 4b) Normalized alert [-1..+1]:
-      courseAlert.value = CF.get_course_alert(
-        currentCourse.value,
-        targetCourse.value
-      );
+      targetCourse.value = CF.calculate_bearing(currentBoatPos.value, nextWP);
+      courseAlert.value = CF.get_course_alert(currentCourse.value, targetCourse.value) * -1;
       targetSpeed = CF.get_target_speed(passedWaypointIndex.value);
-    }
-    else {
+    } else {
       targetCourse.value = 0;
-      courseAlert.value  = 0;
+      courseAlert.value = 0;
     }
   },
   { immediate: true }
@@ -504,6 +519,30 @@ watch(passedWaypointIndex, (val) => {
   localStorage.setItem('passedWaypointIndex', String(val));
 });
 
+window.addEventListener("keydown", async (event) => {
+  if (event.key === "e" || event.key === "E") {
+    const coords = await CF.getLiveData('coordinates'); // Await the GPS fetch
+    if (!coords) {
+      $q.notify({
+        type: 'negative',
+        message: 'No GPS position available',
+        position: 'top'
+      });
+      return;
+    }
+    const pos = CF.formatCoordinates(coords); // Format is synchronous
+    $q.notify({
+        type: 'positive',
+        message: 'Transit line logged',
+        position: 'top'
+      });
+    CF.addLog({
+      type: 'info',
+      message: `Transit line at ${pos}`
+    });
+  }
+});
+
 function setNavigationState(active) {
   isNavigating.value = active;
   localStorage.setItem('isNavigating', active);
@@ -532,6 +571,7 @@ async function initializeNavigation() {
 
       // ── Update boat state ─────────────────────────────────────────
       center.value = pos;
+      zoom.value = 15;
       currentSpeed.value = (await CF.getLiveData('speed')) || 0;
       currentCourse.value = (await CF.getLiveData('course')) || 0;
       boatIcon.value = createBoatIcon(currentCourse.value);

@@ -1,6 +1,6 @@
 <template>
   <q-page class="q-pa-md bg-grey-1">
-    <div class="page-header q-mb-lg">
+    <div class="q-mb-lg">
       <div class="row items-center">
         <q-icon name="map" size="2.5rem" color="primary" class="q-mr-md" />
         <div>

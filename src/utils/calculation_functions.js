@@ -124,7 +124,7 @@ export async function get_route_coordinates(index = null) {
       });
     }
 
-    // 1️⃣ Handle <rte><rtept>
+    // Handle <rte><rtept>
     if (
       parsed.gpx?.rte?.rtept
     ) {
@@ -134,7 +134,7 @@ export async function get_route_coordinates(index = null) {
       addPoints(rtepts);
     }
 
-    // 2️⃣ Handle <trk><trkseg><trkpt>
+    // Handle <trk><trkseg><trkpt>
     if (parsed.gpx?.trk) {
       const trks = Array.isArray(parsed.gpx.trk)
         ? parsed.gpx.trk
@@ -228,39 +228,6 @@ export function convert_unit(operation, value) {
   }
 }
 
-// export async function get_eta_for_waypoints(
-//   planned_start_time,
-//   planned_speed,
-//   index = null
-// ) {
-//   let route = await get_route_coordinates(); // Assumes route[0] is the planned starting waypoint
-//   let start_time = convert_unit("to-seconds", planned_start_time);
-
-//   let route_eta_list = [];
-//   let cumulative_distance = 0.0;
-//   let prev_waypoint = route[0];
-
-//   // Add the start waypoint (ETA is the start time)
-//   route_eta_list.push([prev_waypoint, planned_start_time]);
-
-//   for (let i = 1; i < route.length; i++) {
-//     let waypoint = route[i];
-//     cumulative_distance += get_2point_route_distance(prev_waypoint, waypoint);
-//     let travel_time_seconds = (cumulative_distance / planned_speed) * 3600;
-//     let eta_seconds = start_time + travel_time_seconds;
-
-//     let formatted_eta = convert_unit("format-seconds", eta_seconds);
-//     route_eta_list.push([waypoint, formatted_eta]);
-//     prev_waypoint = waypoint; // Update previous waypoint for next iteration
-//   }
-
-//   if (index !== null) {
-//     return route_eta_list[index];
-//   } else {
-//     return route_eta_list;
-//   }
-// }
-
 // Helper to fetch fallback speeds
 export function getSpeedsWithFallback(plannedSpeed, numSegments) {
   let storedSpeeds = [];
@@ -344,15 +311,9 @@ export async function get_estimated_delay(eta_list, waypoint_index, current_spee
   const delay_abs = Math.abs(raw_delay);
   const formatted_delay = convert_unit("format-seconds", delay_abs);
 
-  // 5. Throttle suggestion
-  const coarse = 300;
-  const exponent = 0.4; // Updated exponent for 0.7 at 15 sec
-
-  const clamped_delay = Math.min(delay_abs, coarse);
-  const scaled = Math.pow(clamped_delay / coarse, exponent);
-  let throttle_alert = scaled * (is_late ? 1 : -1);
-
-  // console.log(raw_delay, formatted_delay, is_late, throttle_alert);
+  // 5. Throttle suggestion using smooth polynomial function
+  const smoothing = 5; // larger = gentler curve
+  let throttle_alert = raw_delay / (delay_abs + smoothing); // in range (-1, 1)
 
   // ─── Return in [distance, rawDelay, formattedDelay, isLate, throttle] ───
   return [

@@ -1,10 +1,5 @@
 To do:
 
-- Info page minimap with yellow speed zones
-    - yellow speed border
-
 - UI overlay map?
 
-- Enslinjeknapp (loggar tidpunkt, position och ideell tid)
-
-- Dashborard wp styling
+- Enslinje ETA
