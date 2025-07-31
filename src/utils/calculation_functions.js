@@ -279,50 +279,69 @@ export async function get_eta_for_waypoints(planned_start_time, segment_speeds, 
 }
 
 export async function get_estimated_delay(eta_list, waypoint_index, current_speed) {
-  const route = await get_route_coordinates();
+  const next_waypoint = await get_route_coordinates(waypoint_index);
   const current_location = await getLiveData("coordinates");
-  const next_waypoint = route[waypoint_index];
 
   // 1. Remaining distance in NM
   const remaining_distance = get_2point_route_distance(current_location, next_waypoint);
 
-  // 2. Planned ETA (seconds)
+  // 2. Planned ETA (absolute seconds, same reference as get_time())
   const planned_eta_seconds = convert_unit("to-seconds", eta_list[waypoint_index][1]);
 
   // 3. Predict arrival time at current speed
   let predicted_eta_seconds;
   if (current_speed > 0.1) {
     const now_seconds = convert_unit("to-seconds", get_time());
-    const travel_time = (remaining_distance / current_speed) * 3600;
+    const travel_time = (remaining_distance / current_speed) * 3600;  // NM / (NM/h) = h → *3600 = s
     predicted_eta_seconds = now_seconds + travel_time;
   } else {
     predicted_eta_seconds = Infinity;
   }
 
-  // 4. Compute raw_delay (force to 0 if predicted ETA is infinite)
-  let raw_delay;
-  if (!isFinite(predicted_eta_seconds)) {
-    raw_delay = 0;
-  } else {
-    raw_delay = predicted_eta_seconds - planned_eta_seconds;  // +ve = late, –ve = early
-  }
+  // 4. Compute raw delay
+  const raw_delay = isFinite(predicted_eta_seconds)
+    ? predicted_eta_seconds - planned_eta_seconds  // + = late, − = early
+    : 0;
 
   const is_late = raw_delay > 0;
   const delay_abs = Math.abs(raw_delay);
   const formatted_delay = convert_unit("format-seconds", delay_abs);
 
   // 5. Throttle suggestion using smooth polynomial function
-  const smoothing = 5; // larger = gentler curve
-  let throttle_alert = raw_delay / (delay_abs + smoothing); // in range (-1, 1)
+  const smoothing      = 5;  // larger = gentler curve
+  const throttle_alert = raw_delay / (delay_abs + smoothing);  // in range (−1, +1)
 
-  // ─── Return in [distance, rawDelay, formattedDelay, isLate, throttle] ───
   return [
     remaining_distance,  // [0]
-    raw_delay,           // [1] now 0 if predicted ETA was Infinity
+    raw_delay,           // [1]
     formatted_delay,     // [2]
     is_late,             // [3]
     throttle_alert       // [4]
   ];
+}
+
+export async function calculate_transit_line(eta_list, passed_waypoint_index) {
+  const passed_WP = await get_route_coordinates(passed_waypoint_index);
+  const current_location = await getLiveData("coordinates");
+  const speed = get_target_speed(passed_waypoint_index);
+  const time = get_time();
+
+  const distance = get_2point_route_distance(current_location, passed_WP);
+  const travel_time = (distance / speed) * 3600;
+  const eta = convert_unit("to-seconds", eta_list[passed_waypoint_index][1]) + travel_time;
+  const formatted_eta = convert_unit("format-seconds", eta);
+
+  const raw_delay = eta - convert_unit("to-seconds", time);
+  const is_late = raw_delay > 0;
+  const delay_abs = Math.abs(raw_delay);
+  const formatted_delay = convert_unit("format-seconds", delay_abs);
+
+  // Return ETA, and delay
+  return {
+    eta: formatted_eta,          // [hours, minutes, seconds, milliseconds]
+    formatted_delay: formatted_delay, // [hours, minutes, seconds, milliseconds]
+    is_late: is_late,            // true if late
+  };
 }
 
 export function formatCoordinates(coords) {

@@ -519,29 +519,58 @@ watch(passedWaypointIndex, (val) => {
   localStorage.setItem('passedWaypointIndex', String(val));
 });
 
-window.addEventListener("keydown", async (event) => {
-  if (event.key === "e" || event.key === "E") {
-    const coords = await CF.getLiveData('coordinates'); // Await the GPS fetch
-    if (!coords) {
-      $q.notify({
-        type: 'negative',
-        message: 'No GPS position available',
-        position: 'top'
-      });
-      return;
-    }
-    const pos = CF.formatCoordinates(coords); // Format is synchronous
-    $q.notify({
-        type: 'positive',
-        message: 'Transit line logged',
-        position: 'top'
-      });
-    CF.addLog({
-      type: 'info',
-      message: `Transit line at ${pos}`
+async function onKeyDown(event) {
+  // Only respond to “e” when we’re navigating
+  if (event.key.toLowerCase() !== 'e' || !isNavigating.value) {
+    return;
+  }
+
+  // 2) Fetch GPS coords
+  const coords = await CF.getLiveData('coordinates');
+  if (!coords) {
+    return $q.notify({
+      type: 'negative',
+      message: 'No GPS position available',
+      position: 'top'
     });
   }
-});
+
+  // 3) Try the transit-line calculation
+  let transitLineData;
+  try {
+    transitLineData = await CF.calculate_transit_line(
+      etaList.value,
+      passedWaypointIndex.value,
+    );
+  }
+  catch (err) {
+    console.error('Error calculating transit line:', err);
+    return $q.notify({
+      type: 'negative',
+      message: 'Failed to calculate transit line',
+      position: 'top'
+    });
+  }
+
+  // 4) Log & notify
+  const posStr = CF.formatCoordinates(coords);
+  const etaStr = transitLineData.eta ?? 'N/A';
+  const delayStr = transitLineData.formatted_delay ?? 'N/A';
+  const statusStr = transitLineData.is_late
+    ? 'Late'
+    : 'Early';
+
+  CF.addLog({
+    type: 'info',
+    message: `Transit line logged at (${posStr}) after WP ${passedWaypointIndex.value + 1}. ETA: ${formatTime(etaStr)}. Delay: ${formatTime(delayStr)} (${statusStr})`
+  });
+
+  $q.notify({
+    type: 'positive',
+    message: 'Transit line logged',
+    position: 'top'
+  });
+}
 
 function setNavigationState(active) {
   isNavigating.value = active;
@@ -720,6 +749,7 @@ function stopNavigation() {
   estimatedDelay.value = null;
   throttleValue.value = 0;
   etaList.value = [];
+  window.removeEventListener('keydown', onKeyDown);
 }
 
 async function toggleNavigation() {
@@ -739,6 +769,7 @@ async function toggleNavigation() {
 
 onMounted(async () => {
   currentGPXFile.value = (localStorage.getItem('currentGPXFileName') || '').replace('.gpx', '');
+  window.addEventListener('keydown', onKeyDown);
 
   const coords = await CF.get_route_coordinates();
   if (!coords.length) return;
@@ -784,6 +815,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopNavigation();
+  window.removeEventListener('keydown', onKeyDown);
 });
 </script>
 
