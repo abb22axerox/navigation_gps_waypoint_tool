@@ -2,7 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 import { liveGpsData, lastGpsUpdate } from "src/boot/live-gps";
 
 export function get_time() {
-  let now = new Date();
+  let now = new Date(Date.now() + 500);
   return [
     now.getHours(),
     now.getMinutes(),

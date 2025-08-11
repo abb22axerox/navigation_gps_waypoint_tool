@@ -1,5 +1,3 @@
 To do:
 
 - UI overlay map?
-
-- Enslinje ETA

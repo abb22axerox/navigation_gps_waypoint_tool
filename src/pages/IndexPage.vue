@@ -288,7 +288,7 @@ function createIndexedDotIcon(index) {
     html: `
       <div style="
         background-color: red;
-        color: black;
+        color: white;
         font-weight: bold;
         font-size: 12px;
         border-radius: 50%;
